@@ -47,7 +47,7 @@ const SITE = {
   zoom: 14,
   maxBounds: [[-85.40, 39.45], [-84.95, 39.80]],   // [[west, south], [east, north]]
   childZoom: 16,   // at this zoom and closer, parents hide and their children show
-  colors: { IND:"#AF350A", CIV:"E2E1E0", TRANS:"#91AF45", COMM:"#E47303", RES:#BDD76B, default:"#E47303" }, // Category colors
+  colors: { IND:"#AF350A", CIV:"#E2E1E0", TRANS:"#91AF45", COMM:"#E47303", RES:"#BDD76B", default:"#E47303" }, // Category colors
   files: { locations: "locations.csv", children: "childmarkers.csv", boundary: "connersville.geojson" }
 };
 
@@ -99,12 +99,11 @@ function makePin(item, cls) {
   b.setAttribute("aria-label", item.name);
   b.appendChild(thumb(item.id));             // no thumbnail: plain teal circle
   item.r = cls === "parent" ? 29 : 22;       // circle radius in pixels
-  item.color = SITE.colors[key(item.d.CATEGORY)] || SITE.colors.default;
+  item.color = SITE.colors[String(item.d.CATEGORY || "").trim().toUpperCase()] || SITE.colors.default;
   b.style.setProperty("--c", item.color);
   b.onclick = e => { e.stopPropagation(); select(item); };
   item.el = b;
   item.marker = new maplibregl.Marker({ element: b }).setLngLat(item.ll).addTo(map);
-  item.color = SITE.colors[key(item.d.CATEGORY)] || SITE.colors.default; b.style.setProperty("--c", item.color);
 }
 
 map.on("load", async () => {
@@ -187,7 +186,7 @@ function drawLeaders() {
     const t = map.project(it.ll), L = Math.hypot(it.off[0], it.off[1]) || 1;
     const ux = it.off[0] / L, uy = it.off[1] / L, w = it.r * 0.4;
     const bx = t.x + it.off[0] - ux * (it.r - 3), by = t.y + it.off[1] - uy * (it.r - 3);
-    h += `<path d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>`;
+    h += `<path style="fill:${it.color}" d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>`;
   });
   svg.innerHTML = h;
 }
