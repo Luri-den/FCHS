@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -19,6 +19,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .pin img{width:100%;height:100%;object-fit:cover;display:block}
 .pin.parent{width:58px;height:58px;border:4px solid #01796F;box-shadow:0 0 0 2px #fff,0 1px 5px #0008}
 .pin:focus-visible{outline:3px solid #ff9800}
+.pin.sel{border-color:#ff9800}
 #panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
 #panel img{width:100%;max-height:240px;object-fit:cover;border-radius:6px}
 #panel h2{margin:8px 0 4px;font-size:19px}
@@ -67,7 +68,20 @@ const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 svg.id = "leaders";
 map.getCanvasContainer().appendChild(svg);
 
-let places = [], kids = [], focus = null;
+let places = [], kids = [], focus = null, sel = null, prev = null;
+
+// Tries several file extensions in thumbs/ (names must match the ID exactly, including capitals).
+const EXT = ["jpg", "jpeg", "png", "webp", "JPG", "PNG"];
+function thumb(id) {
+  const im = new Image(); im.alt = ""; let i = 0;
+  const go = () => { im.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i]; };
+  im.onerror = () => {
+    if (++i < EXT.length) go();
+    else { im.remove(); console.warn("No thumbnail found for " + id + " (looked for thumbs/" + id + ".jpg, .jpeg, .png, .webp)"); }
+  };
+  go();
+  return im;
+}
 
 function load(file) {
   return new Promise(resolve => Papa.parse(file, {
@@ -82,11 +96,8 @@ function makePin(item, cls) {
   b.type = "button";
   b.className = "pin " + cls;
   b.setAttribute("aria-label", item.name);
-  const im = new Image();
-  im.alt = "";
-  im.src = "thumbs/" + encodeURIComponent(item.id) + ".jpg";
-  im.onerror = () => im.remove();            // no thumbnail: plain teal circle
-  b.appendChild(im);
+  b.appendChild(thumb(item.id));             // no thumbnail: plain teal circle
+  item.r = cls === "parent" ? 29 : 22;       // circle radius in pixels
   b.onclick = e => { e.stopPropagation(); select(item); };
   item.el = b;
   item.marker = new maplibregl.Marker({ element: b }).setLngLat(item.ll).addTo(map);
@@ -119,49 +130,48 @@ map.on("load", async () => {
   update();
 });
 
-// Parents show when zoomed out; children show when zoomed in, or when their parent is focused.
+// While a parent is selected, only its children show. Otherwise: parents when zoomed out, children when zoomed in.
 function update() {
   const deep = map.getZoom() >= SITE.childZoom;
-  if (!deep && focus && map.getZoom() < SITE.childZoom - 2) focus = null;
-  places.forEach(p => { if (p.kids.length) p.el.style.display = (deep || focus === p) ? "none" : ""; });
-  kids.forEach(k => { k.el.style.display = (deep || focus === k.parent) ? "" : "none"; });
+  places.forEach(p => { p.el.style.display = focus ? "none" : (p.kids.length && deep ? "none" : ""); });
+  kids.forEach(k => { k.el.style.display = focus ? (k.parent === focus ? "" : "none") : (deep ? "" : "none"); });
   declutter();
   drawLeaders();
 }
 
-// Push overlapping child circles off their true spot, in rings, so none cover each other.
+// Every marker is a circle with a pointer whose tip sits on the true location.
+// The circle rests straight above the tip; if it would overlap another circle it moves
+// around the tip in rings, and the pointer stretches. Parents never move.
 function declutter() {
-  const D = 50, placed = [];
-  places.forEach(p => { if (p.el.style.display !== "none") placed.push(map.project(p.ll)); });
-  kids.forEach(k => {
-    k.off = [0, 0];
-    if (k.el.style.display === "none") return;
-    const p = map.project(k.ll);
-    let pos = null, o = [0, 0], R = 0;
-    for (let ring = 0; ring < 8 && !pos; ring++) {
-      R = ring ? D * 0.8 + ring * D * 0.7 : 0;
-      const n = ring ? 8 + ring * 4 : 1;
+  const rank = i => i.kids && i.kids.length ? 0 : (i.parent ? 2 : 1);
+  const vis = places.concat(kids).filter(i => i.el.style.display !== "none").sort((a, b) => rank(a) - rank(b));
+  const placed = [];
+  vis.forEach(it => {
+    const p = map.project(it.ll), base = it.r + 12, fixed = rank(it) === 0;
+    let c = null, o = [0, -base];
+    for (let ring = 0; ring < 8 && !c; ring++) {
+      const R = base + ring * 34, n = ring ? 8 + ring * 4 : 1;
       for (let i = 0; i < n; i++) {
         const a = -Math.PI / 2 + 2 * Math.PI * i / n, dx = Math.cos(a) * R, dy = Math.sin(a) * R;
-        const c = { x: p.x + dx, y: p.y + dy };
-        if (placed.every(q => Math.hypot(q.x - c.x, q.y - c.y) >= D)) { pos = c; o = [dx, dy]; break; }
+        const t = { x: p.x + dx, y: p.y + dy };
+        o = [dx, dy];
+        if (fixed || placed.every(q => Math.hypot(q.x - t.x, q.y - t.y) >= q.r + it.r + 4)) { c = t; break; }
       }
     }
-    if (!pos) { o = [R, 0]; pos = { x: p.x + R, y: p.y }; }
-    k.off = o;
-    k.marker.setOffset(o);
-    placed.push(pos);
+    it.off = o;
+    it.marker.setOffset(o);
+    placed.push({ x: p.x + o[0], y: p.y + o[1], r: it.r });
   });
 }
 
 // Tapered pointer: wide at the circle, narrowing to the true location.
 function drawLeaders() {
   let h = "";
-  kids.forEach(k => {
-    if (k.el.style.display === "none" || !(k.off[0] || k.off[1])) return;
-    const t = map.project(k.ll), L = Math.hypot(k.off[0], k.off[1]);
-    const ux = k.off[0] / L, uy = k.off[1] / L, w = 9;
-    const bx = t.x + k.off[0] - ux * 20, by = t.y + k.off[1] - uy * 20;
+  places.concat(kids).forEach(it => {
+    if (it.el.style.display === "none" || !it.off) return;
+    const t = map.project(it.ll), L = Math.hypot(it.off[0], it.off[1]) || 1;
+    const ux = it.off[0] / L, uy = it.off[1] / L, w = it.r * 0.4;
+    const bx = t.x + it.off[0] - ux * (it.r - 3), by = t.y + it.off[1] - uy * (it.r - 3);
     h += `<path d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>`;
   });
   svg.innerHTML = h;
@@ -170,6 +180,9 @@ map.on("zoomend", update);
 map.on("render", drawLeaders);
 
 function select(it) {
+  if (!sel && !prev) prev = { center: map.getCenter(), zoom: map.getZoom() };   // remember the view to return to
+  sel = it;
+  places.concat(kids).forEach(i => i.el.classList.toggle("sel", i === it));
   if (it.kids && it.kids.length) {
     focus = it;
     const b = new maplibregl.LngLatBounds();
@@ -179,25 +192,35 @@ function select(it) {
     if (it.parent) focus = it.parent;
     map.easeTo({ center: it.ll, zoom: Math.max(map.getZoom(), it.parent ? 17 : 15) });
   }
-  const d = it.d;
-  $("panel").innerHTML =
-    `<button id="x" aria-label="Close">&times;</button>` +
-    `<img src="thumbs/${esc(it.id)}.jpg" alt="" onerror="this.remove()">` +
-    `<h2>${esc(it.name)}</h2>` +
+  const d = it.d, panel = $("panel");
+  panel.innerHTML =
+    `<button id="x" aria-label="Close">&times;</button><h2>${esc(it.name)}</h2>` +
     (d.HIST_NAMES ? `<p><b>Also known as:</b> ${esc(d.HIST_NAMES)}</p>` : "") +
     (d.ADDRESS ? `<p><b>Address:</b> ${esc(d.ADDRESS)}</p>` : "") +
     `<p>${esc(d.DETAILS || "")}</p>` +
     (it.kids && it.kids.length ? "<h3>Places here</h3>" + it.kids.map(k => `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`).join("") : "");
-  $("panel").hidden = false;
+  panel.insertBefore(thumb(it.id), panel.querySelector("h2"));
+  panel.hidden = false;
   update();
 }
 
+// X or a click on the map: show everything again and zoom back to where the visitor was.
+function deselect() {
+  if (!sel) return;
+  sel = null; focus = null;
+  $("panel").hidden = true;
+  places.concat(kids).forEach(i => i.el.classList.remove("sel"));
+  update();
+  if (prev) { map.flyTo({ center: prev.center, zoom: prev.zoom }); prev = null; }
+}
+
 $("panel").onclick = e => {
-  if (e.target.closest("#x")) { $("panel").hidden = true; focus = null; update(); return; }
+  if (e.target.closest("#x")) { deselect(); return; }
   const b = e.target.closest(".kid");
   if (b) { const k = kids.find(x => x.id === b.dataset.id); if (k) select(k); }
 };
-map.on("click", () => { $("res").hidden = true; });
+map.on("click", () => { $("res").hidden = true; deselect(); });
+map.on("resize", update);
 
 $("q").oninput = e => {
   const s = e.target.value.trim().toLowerCase(), r = $("res");
