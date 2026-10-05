@@ -222,7 +222,16 @@
 }
    
     /* ---------- MAP ---------- */
-    #map { flex: 1; min-height: 0; width: 100%; position: relative; touch-action: none; }
+    #map { flex: 1; min-height: 0; width: 100%; position: relative; touch-action: auto; }
+
+/* Keep the MapLibre canvas itself as the interaction surface. */
+#map .maplibregl-canvas-container,
+#map .maplibregl-canvas {
+    pointer-events: auto;
+}
+#map .maplibregl-canvas-container {
+    touch-action: pan-x pan-y;
+}
 
     /* These custom overlays must never block MapLibre pan/zoom except on the marker itself. */
     #parent-marker-overlay, #child-callout-overlay, #child-connector-overlay, #search-directions, #child-site-labels {
@@ -2070,6 +2079,16 @@ function loadLocations() {
 /* ---------- MAP INITIALIZATION ---------- */
 
 map.on("load",function() {
+
+    /* Explicitly restore all MapLibre navigation handlers.  The custom photo
+       overlays sit above the canvas, so do not rely on defaults here. */
+    map.dragPan.enable();
+    map.scrollZoom.enable();
+    map.doubleClickZoom.enable();
+    map.boxZoom.enable();
+    map.keyboard.enable();
+    map.dragRotate.enable();
+    map.touchZoomRotate.enable();
 
     try {
         setBasemap(localStorage.getItem("basemap") === "aerial" ? "aerial" : "street");
