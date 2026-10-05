@@ -496,6 +496,108 @@
         #info-content { padding-right: 40px; }
     }
 
+/* ---------- HISTORIC PHOTO MARKERS ---------- */
+.photo-marker {
+    --marker-size: 38px;
+    width: var(--marker-size);
+    height: var(--marker-size);
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    background: #eee9dc;
+    border: 3px solid #C9A227;
+    box-shadow: 0 1px 5px rgba(0,0,0,.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: width .12s ease, height .12s ease, border-color .12s ease, opacity .12s ease;
+}
+.photo-marker.parent {
+    border-color: #01796F;
+    border-width: 4px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.5);
+}
+.photo-marker.selected {
+    border-color: #FFD700;
+    box-shadow: 0 0 0 3px rgba(255,215,0,.45), 0 2px 8px rgba(0,0,0,.5);
+}
+.photo-marker img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.photo-marker-fallback {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    color: white;
+    font-weight: bold;
+    font-size: calc(var(--marker-size) * .28);
+    text-align: center;
+    line-height: 1;
+}
+.photo-marker.parent .photo-marker-fallback { background: #01796F; }
+.photo-marker.child .photo-marker-fallback { background: #C9A227; color: #463a2d; }
+.photo-marker-image-link { display:block; width:100%; height:100%; border-radius:50%; }
+#child-connector-overlay {
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none; z-index:1; overflow:visible;
+}
+#child-connector-overlay polygon { fill:#463a2d; opacity:.78; }
+
+
+#marker-photo-lightbox {
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:11000;
+    background:rgba(0,0,0,.82);
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+}
+#marker-photo-lightbox.open { display:flex; }
+#marker-photo-lightbox img {
+    max-width:min(92vw,900px);
+    max-height:88vh;
+    width:auto;
+    height:auto;
+    object-fit:contain;
+    border-radius:8px;
+    box-shadow:0 4px 24px rgba(0,0,0,.5);
+    background:#fff;
+}
+#marker-photo-lightbox-caption {
+    position:absolute;
+    left:50%; bottom:18px;
+    transform:translateX(-50%);
+    max-width:90vw;
+    padding:7px 11px;
+    border-radius:5px;
+    background:rgba(255,255,255,.94);
+    color:#463a2d;
+    font-size:14px;
+    text-align:center;
+}
+#marker-photo-lightbox-close {
+    position:absolute;
+    top:12px; right:14px;
+    width:44px; height:44px;
+    border:1px solid #aaa;
+    border-radius:50%;
+    background:#fff;
+    color:#463a2d;
+    font-size:28px;
+    line-height:40px;
+    padding:0;
+    cursor:pointer;
+}
+#marker-photo-lightbox-close:hover { background:#01796F; color:#fff; }
+
 /* ---------- DISCOVER HISTORIC CONNERSVILLE ---------- */
 .location-marker-legend {
     display:flex; align-items:center; gap:8px; margin:5px 0;
@@ -557,6 +659,7 @@
     <div id="sr-status" class="sr-only" aria-live="polite"></div>
     <div id="search-directions"></div>
     <div id="child-site-labels"></div>
+    <svg id="child-connector-overlay" aria-hidden="true"></svg>
 
     <div id="accessibility-legend">
         <button id="legend-toggle" type="button" aria-expanded="false" aria-controls="legend-content">
@@ -588,6 +691,12 @@
     </div>
 </div>
 </main>
+
+<div id="marker-photo-lightbox" role="dialog" aria-modal="true" aria-label="Historic photograph">
+    <button id="marker-photo-lightbox-close" type="button" aria-label="Close photograph">&times;</button>
+    <img id="marker-photo-lightbox-image" src="" alt="">
+    <div id="marker-photo-lightbox-caption"></div>
+</div>
 
 <div id="notices-overlay" role="dialog" aria-modal="true" aria-labelledby="notices-title">
     <div id="notices-box">
@@ -687,6 +796,7 @@ const searchBox = document.getElementById("search");
 const clearSearch = document.getElementById("clear-search");
 const searchDirections = document.getElementById("search-directions");
 const childSiteLabels = document.getElementById("child-site-labels");
+const childConnectorOverlay = document.getElementById("child-connector-overlay");
 const searchResultsBox = document.getElementById("search-results");
 const noticesOverlay = document.getElementById("notices-overlay");
 const locationToggle = document.getElementById("search-location");
@@ -710,6 +820,9 @@ let searchChildren = true;
 let searchResultsOpen = false;
 let currentSearchResults = [];
 let hoverPopup = null;
+let parentMarkers = [];
+let childMarkers = [];
+let markerImageCache = {};
 
 const EMPTY_COLLECTION = { type:"FeatureCollection", features:[] };
 const LOCATIONS_CSV = "locations.csv";
@@ -849,12 +962,170 @@ function loadConnersvilleBoundary() {
         .catch(error => console.error(CONNERSVILLE_GEOJSON + " loading error:",error));
 }
 
-/* ---------- CHILD CONNECTIONS ---------- */
+/* ---------- PHOTO MARKERS / CHILD CONNECTIONS ---------- */
+
+function photoCandidates(id) {
+    const safe = encodeURIComponent(cleanString(id));
+    return [
+        "thumbs/" + safe + ".jpg",
+        "thumbs/" + safe + ".jpeg",
+        "thumbs/" + safe + ".png",
+        "thumbs/" + safe + ".webp"
+    ];
+}
+
+function markerInitials(text) {
+    const words = cleanString(text).split(/\s+/).filter(Boolean);
+    if (!words.length) return "?";
+    if (words.length === 1) return words[0].slice(0,2).toUpperCase();
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+function createPhotoMarker(type, id, name, coordinates) {
+    const element = document.createElement("div");
+    element.className = "photo-marker " + type;
+    element.dataset.markerId = cleanString(id);
+    element.dataset.markerType = type;
+    element.setAttribute("role","button");
+    element.setAttribute("tabindex","0");
+    element.setAttribute("aria-label", name || (type === "parent" ? "Historic location" : "Related historic marker"));
+
+    const link = document.createElement("span");
+    link.className = "photo-marker-image-link";
+    link.setAttribute("aria-hidden","true");
+
+    const fallback = document.createElement("span");
+    fallback.className = "photo-marker-fallback";
+    fallback.textContent = markerInitials(name || id);
+    link.appendChild(fallback);
+    element.appendChild(link);
+
+    const candidates = photoCandidates(id);
+    let candidateIndex = 0;
+    const img = document.createElement("img");
+    img.alt = name || "Historic photograph";
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.style.display = "none";
+
+    function tryNext() {
+        if (candidateIndex >= candidates.length) return;
+        img.src = candidates[candidateIndex++];
+    }
+
+    img.addEventListener("load",function() {
+        fallback.style.display = "none";
+        img.style.display = "block";
+    });
+    img.addEventListener("error",function() {
+        img.style.display = "none";
+        tryNext();
+    });
+    link.insertBefore(img, fallback);
+    tryNext();
+
+    function activate(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (type === "parent") {
+            const feature = findLocation(id);
+            if (feature) selectLocation(feature);
+        } else {
+            showChildPanel(id);
+        }
+    }
+
+    element.addEventListener("click",activate);
+    element.addEventListener("keydown",function(event) {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+
+    const marker = new maplibregl.Marker({element:element, anchor:"center"})
+        .setLngLat(coordinates)
+        .addTo(map);
+
+    marker._photoElement = element;
+    marker._photoImage = img;
+    marker._photoFallback = fallback;
+    marker._photoId = cleanString(id);
+    marker._photoName = name || "";
+    marker._photoType = type;
+    marker._photoCoordinates = coordinates;
+    return marker;
+}
+
+function markerSizeForZoom(zoom, type) {
+    const base = type === "parent" ? 48 : 36;
+    const growth = type === "parent" ? 7 : 6;
+    return Math.round(Math.max(type === "parent" ? 36 : 26,
+        Math.min(type === "parent" ? 80 : 66, base + (zoom - 13) * growth)));
+}
+
+function updatePhotoMarkerSizes() {
+    const zoom = map.getZoom();
+    parentMarkers.concat(childMarkers).forEach(marker => {
+        const element = marker._photoElement;
+        if (!element) return;
+        const size = markerSizeForZoom(zoom, marker._photoType);
+        element.style.setProperty("--marker-size",size + "px");
+    });
+}
+
+function markerPhotoSource(marker) {
+    if (!marker || !marker._photoImage) return "";
+    if (marker._photoImage.complete && marker._photoImage.naturalWidth > 0) {
+        return marker._photoImage.currentSrc || marker._photoImage.src;
+    }
+    return "";
+}
+
+function openMarkerPhoto(marker, caption) {
+    const src = markerPhotoSource(marker);
+    if (!src) return;
+    const lightbox = document.getElementById("marker-photo-lightbox");
+    const image = document.getElementById("marker-photo-lightbox-image");
+    const captionEl = document.getElementById("marker-photo-lightbox-caption");
+    image.src = src;
+    image.alt = caption || "Historic photograph";
+    captionEl.textContent = caption || "";
+    lightbox.classList.add("open");
+}
+
+function hideMarkerPhotoLightbox() {
+    document.getElementById("marker-photo-lightbox").classList.remove("open");
+    document.getElementById("marker-photo-lightbox-image").src = "";
+}
+
+document.getElementById("marker-photo-lightbox-close").addEventListener("click",hideMarkerPhotoLightbox);
+document.getElementById("marker-photo-lightbox").addEventListener("click",function(event) {
+    if (event.target.id === "marker-photo-lightbox") hideMarkerPhotoLightbox();
+});
+document.addEventListener("keydown",function(event) {
+    if (event.key === "Escape") hideMarkerPhotoLightbox();
+});
+
+function setParentMarkerVisibility() {
+    parentMarkers.forEach(marker => {
+        const visible = !selectedLocationFeature ||
+            marker._photoId === cleanString(selectedLocationFeature.properties.ID);
+        marker._photoElement.style.display = visible ? "flex" : "none";
+    });
+}
+
+function setChildMarkerVisibility() {
+    childMarkers.forEach(marker => {
+        const visible = !!selectedLocationFeature &&
+            cleanString(marker._parentId) === cleanString(selectedLocationFeature.properties.ID);
+        marker._photoElement.style.display = visible ? "flex" : "none";
+    });
+}
 
 function hideChildConnections() {
     childConnectionsVisible = false;
     selectedChildId = "";
     childSiteLabels.innerHTML = "";
+    childConnectorOverlay.innerHTML = "";
+    setChildMarkerVisibility();
 
     ["child-sites-data","child-lines-data"].forEach(id => {
         const source = map.getSource(id);
@@ -887,10 +1158,7 @@ function showChildConnections(parentFeature) {
                 NAME:row.NAME || "",
                 HIST_NAMES:row.HIST_NAMES || ""
             },
-            geometry:{
-                type:"Point",
-                coordinates:[parseFloat(row.LONG),parseFloat(row.LAT)]
-            }
+            geometry:{type:"Point",coordinates:[parseFloat(row.LONG),parseFloat(row.LAT)]}
         }))
     });
 
@@ -898,10 +1166,7 @@ function showChildConnections(parentFeature) {
         type:"FeatureCollection",
         features:children.map(row => ({
             type:"Feature",
-            properties:{
-                CHILD_IS:cleanString(row.CHILD_IS),
-                PARENT_ID:cleanString(row.PARENT_ID)
-            },
+            properties:{CHILD_IS:cleanString(row.CHILD_IS),PARENT_ID:cleanString(row.PARENT_ID)},
             geometry:{
                 type:"LineString",
                 coordinates:[parentCoords,[parseFloat(row.LONG),parseFloat(row.LAT)]]
@@ -910,14 +1175,56 @@ function showChildConnections(parentFeature) {
     });
 
     ["child-lines-casing","child-lines-layer","child-sites-layer"].forEach(id => {
-        if (map.getLayer(id)) map.setLayoutProperty(id,"visibility","visible");
+        if (map.getLayer(id)) map.setLayoutProperty(id,"visibility","none");
     });
 
     childConnectionsVisible = true;
+    setParentMarkerVisibility();
+    setChildMarkerVisibility();
     updateChildSiteLabels();
 }
 
+function updateChildConnectorOverlay() {
+    childConnectorOverlay.innerHTML = "";
+    if (!childConnectionsVisible || !selectedLocationFeature) return;
+
+    const parentPoint = map.project(selectedLocationFeature.geometry.coordinates);
+    const width = map.getContainer().clientWidth;
+    const height = map.getContainer().clientHeight;
+    childConnectorOverlay.setAttribute("viewBox","0 0 " + width + " " + height);
+
+    childrenForParent(selectedLocationFeature.properties.ID).forEach(row => {
+        const lat = parseFloat(row.LAT), lon = parseFloat(row.LONG);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        const childPoint = map.project([lon,lat]);
+        const dx = childPoint.x - parentPoint.x;
+        const dy = childPoint.y - parentPoint.y;
+        const length = Math.sqrt(dx*dx + dy*dy);
+        if (length < 8) return;
+
+        const nx = -dy / length;
+        const ny = dx / length;
+        const startWidth = 5.5;
+        const endWidth = 0.9;
+        const x1a = parentPoint.x + nx * startWidth;
+        const y1a = parentPoint.y + ny * startWidth;
+        const x1b = parentPoint.x - nx * startWidth;
+        const y1b = parentPoint.y - ny * startWidth;
+        const x2a = childPoint.x + nx * endWidth;
+        const y2a = childPoint.y + ny * endWidth;
+        const x2b = childPoint.x - nx * endWidth;
+        const y2b = childPoint.y - ny * endWidth;
+
+        const polygon = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+        polygon.setAttribute("points",`${x1a},${y1a} ${x2a},${y2a} ${x2b},${y2b} ${x1b},${y1b}`);
+        childConnectorOverlay.appendChild(polygon);
+    });
+}
+
 function updateChildSiteLabels() {
+    updateChildConnectorOverlay();
+    childSiteLabels.innerHTML = "";
+
     childSiteLabels.innerHTML = "";
     if (!childConnectionsVisible) return;
 
@@ -931,33 +1238,25 @@ function updateChildSiteLabels() {
         const point = map.project([lon,lat]);
         const width = map.getContainer().clientWidth;
         const height = map.getContainer().clientHeight;
-
         if (point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= height) return;
 
         const edge = 12;
         const x = Math.max(edge,Math.min(width-edge,point.x));
         const y = Math.max(edge,Math.min(height-edge,point.y));
-
         const label = document.createElement("div");
         label.className = "search-direction lake-site-label";
         label.style.left = x + "px";
         label.style.top = y + "px";
         label.style.pointerEvents = "auto";
         label.title = "Go to " + (row.NAME || "Related marker");
-
         const name = document.createElement("span");
         name.className = "search-direction-name";
         name.textContent = row.NAME || "Related marker";
-
         label.appendChild(name);
         label.addEventListener("click",e => {
             e.stopPropagation();
             showChildPanel(row.CHILD_IS);
-            map.flyTo({
-                center:[lon,lat],
-                zoom:Math.max(map.getZoom(),16),
-                duration:700
-            });
+            map.flyTo({center:[lon,lat],zoom:Math.max(map.getZoom(),16),duration:700});
         });
         childSiteLabels.appendChild(label);
     });
@@ -967,12 +1266,11 @@ function clearLocationSelection() {
     selectedLocationFeature = null;
     selectedChildId = "";
     hideChildConnections();
-
-    if (map.getSource("locations-data")) {
-        map.getSource("locations-data").setData({
-            type:"FeatureCollection", features:locationFeatures
-        });
-    }
+    setParentMarkerVisibility();
+    setChildMarkerVisibility();
+    parentMarkers.forEach(marker => marker._photoElement.classList.remove("selected"));
+    childMarkers.forEach(marker => marker._photoElement.classList.remove("selected"));
+    processMapFilters();
 }
 
 function selectLocation(feature, options) {
@@ -981,18 +1279,33 @@ function selectLocation(feature, options) {
     selectedChildId = "";
     infoPanel.style.display = "block";
 
+    parentMarkers.forEach(marker => marker._photoElement.classList.toggle("selected",marker._photoId === cleanString(feature.properties.ID)));
+    childMarkers.forEach(marker => marker._photoElement.classList.remove("selected"));
+
     showLocationPanel(feature);
     showChildConnections(feature);
+    setParentMarkerVisibility();
+    setChildMarkerVisibility();
 
     if (!options.noFly) {
-        map.flyTo({
-            center:feature.geometry.coordinates,
-            zoom:Math.max(map.getZoom(),15),
-            duration:700
-        });
+        const children = childrenForParent(feature.properties.ID).filter(row =>
+            Number.isFinite(parseFloat(row.LAT)) && Number.isFinite(parseFloat(row.LONG))
+        );
+        const points = [feature.geometry.coordinates].concat(children.map(row => [parseFloat(row.LONG),parseFloat(row.LAT)]));
+        if (points.length > 1) {
+            const bounds = points.reduce((b,p) => b.extend(p),new maplibregl.LngLatBounds(points[0],points[0]));
+            map.fitBounds(bounds,{padding:{top:80,bottom:80,left:50,right:350},maxZoom:17,duration:800});
+        } else {
+            map.flyTo({center:feature.geometry.coordinates,zoom:Math.max(map.getZoom(),15),duration:700});
+        }
     }
-
     updateSearchDirections();
+}
+
+function photoThumbHtml(id,name,type) {
+    const safeId = encodeURIComponent(cleanString(id));
+    const label = escapeHtml(name || "Historic photograph");
+    return `<button type="button" class="marker-photo-panel-button" data-photo-id="${escapeHtml(cleanString(id))}" data-photo-type="${type || "child"}" aria-label="View photograph of ${label}"><img src="thumbs/${safeId}.jpg" alt="${label}" onerror="this.onerror=null;this.src='thumbs/${safeId}.png';"></button>`;
 }
 
 function showLocationPanel(feature) {
@@ -1002,7 +1315,8 @@ function showLocationPanel(feature) {
     );
 
     let html = `
-        <h2>${escapeHtml(props.NAME || "Unnamed Location")}</h2>`;
+        <h2>${escapeHtml(props.NAME || "Unnamed Location")}</h2>
+        <div class="panel-marker-photo">${photoThumbHtml(props.ID,props.NAME,"parent")}</div>`;
 
     if (props.DETAILS) {
         html += `<p>${escapeHtml(props.DETAILS).replace(/\n/g,"<br>")}</p>`;
@@ -1022,6 +1336,7 @@ function showLocationPanel(feature) {
         children.forEach(child => {
             html += `
                 <div class="related-child">
+                    <div class="related-child-photo">${photoThumbHtml(child.CHILD_IS,child.NAME,"child")}</div>
                     <h4>${escapeHtml(child.NAME || "Unnamed Marker")}</h4>
                     ${child.HIST_NAMES ? `<p><strong>Historical names:</strong> ${escapeHtml(child.HIST_NAMES)}</p>` : ""}
                     ${child.ADDRESS ? `<p><strong>Address:</strong> ${escapeHtml(child.ADDRESS)}</p>` : ""}
@@ -1048,7 +1363,8 @@ function showChildPanel(childId) {
     infoPanel.style.display = "block";
 
     let html = `
-        <h2>${escapeHtml(child.NAME || "Unnamed Marker")}</h2>`;
+        <h2>${escapeHtml(child.NAME || "Unnamed Marker")}</h2>
+        <div class="panel-marker-photo">${photoThumbHtml(child.CHILD_IS,child.NAME,"child")}</div>`;
 
     if (child.HIST_NAMES) {
         html += `<h3>Historical Names</h3><p>${escapeHtml(child.HIST_NAMES).replace(/\n/g,"<br>")}</p>`;
@@ -1086,6 +1402,15 @@ function showChildPanel(childId) {
 }
 
 infoContent.addEventListener("click",function(event) {
+    const photoButton = event.target.closest(".marker-photo-panel-button");
+    if (photoButton) {
+        const id = photoButton.dataset.photoId;
+        const type = photoButton.dataset.photoType;
+        const marker = (type === "parent" ? parentMarkers : childMarkers).find(m => m._photoId === id);
+        if (marker) openMarkerPhoto(marker, marker._photoName);
+        return;
+    }
+
     const childButton = event.target.closest(".related-child-button");
     if (childButton) {
         showChildPanel(childButton.dataset.childId);
@@ -1226,11 +1551,22 @@ function processMapFilters() {
         p.Search_Active = !!searchStr;
     });
 
-    if (map.getSource("locations-data")) {
-        map.getSource("locations-data").setData({
-            type:"FeatureCollection", features:locationFeatures
-        });
-    }
+    parentMarkers.forEach(marker => {
+        const feature = findLocation(marker._photoId);
+        const matches = feature ? feature.properties.Search_Match !== false : true;
+        const selected = selectedLocationFeature && marker._photoId === cleanString(selectedLocationFeature.properties.ID);
+        const visible = selectedLocationFeature ? selected : matches;
+        marker._photoElement.style.display = visible ? "flex" : "none";
+    });
+
+    childMarkers.forEach(marker => {
+        const child = childRowById(marker._photoId);
+        const parentMatches = child && findLocation(child.PARENT_ID);
+        const matches = !searchStr || (searchChildren && child && childSearchText(child).includes(searchStr));
+        const visible = !!selectedLocationFeature &&
+            marker._parentId === cleanString(selectedLocationFeature.properties.ID) && matches;
+        marker._photoElement.style.display = visible ? "flex" : "none";
+    });
 
     updateSearchResults(searchStr);
     updateSearchDirections();
@@ -1338,54 +1674,13 @@ resetButton.addEventListener("click",function() {
 
 /* ---------- MAP CLICKS / HOVER ---------- */
 
-function handleLocationClick(event) {
-    const feature = event.features && event.features[0];
-    if (!feature) return;
-    selectLocation(feature);
-    if (event.originalEvent) event.originalEvent.stopPropagation();
-}
-
-function handleChildClick(event) {
-    const feature = event.features && event.features[0];
-    if (!feature) return;
-    showChildPanel(feature.properties.CHILD_IS);
-    if (event.originalEvent) event.originalEvent.stopPropagation();
-}
-
-map.on("click","locations-layer",handleLocationClick);
-map.on("click","child-sites-layer",handleChildClick);
-
-map.on("mouseenter","locations-layer",event => {
-    map.getCanvas().style.cursor = "pointer";
-    const f = event.features && event.features[0];
-    if (f) showHoverLabel(f.properties.NAME || "Location",event.lngLat);
-});
-map.on("mousemove","locations-layer",event => {
-    const f = event.features && event.features[0];
-    if (f) showHoverLabel(f.properties.NAME || "Location",event.lngLat);
-});
-map.on("mouseleave","locations-layer",() => {
-    map.getCanvas().style.cursor = "";
-    removeHoverLabel();
-});
-
-map.on("mouseenter","child-sites-layer",event => {
-    map.getCanvas().style.cursor = "pointer";
-    const f = event.features && event.features[0];
-    if (f) showHoverLabel(f.properties.NAME || "Related Marker",event.lngLat,f.properties.HIST_NAMES || "");
-});
-map.on("mousemove","child-sites-layer",event => {
-    const f = event.features && event.features[0];
-    if (f) showHoverLabel(f.properties.NAME || "Related Marker",event.lngLat,f.properties.HIST_NAMES || "");
-});
-map.on("mouseleave","child-sites-layer",() => {
-    map.getCanvas().style.cursor = "";
-    removeHoverLabel();
-});
 
 map.on("move",updateSearchDirections);
+map.on("zoom",updatePhotoMarkerSizes);
+map.on("zoomend",updateChildSiteLabels);
 map.on("resize",updateSearchDirections);
 map.on("move",updateChildSiteLabels);
+map.on("zoom",updateChildConnectorOverlay);
 map.on("resize",updateChildSiteLabels);
 
 map.on("click",function(event) {
@@ -1421,6 +1716,22 @@ function loadChildMarkers() {
                 childrenByParent[row.PARENT_ID].push(row);
             });
 
+            childMarkers.forEach(marker => marker.remove());
+            childMarkers = childRows
+                .filter(row => Number.isFinite(parseFloat(row.LAT)) && Number.isFinite(parseFloat(row.LONG)))
+                .map(row => {
+                    const marker = createPhotoMarker(
+                        "child",
+                        row.CHILD_IS,
+                        row.NAME || "Related Marker",
+                        [parseFloat(row.LONG),parseFloat(row.LAT)]
+                    );
+                    marker._parentId = cleanString(row.PARENT_ID);
+                    return marker;
+                });
+
+            updatePhotoMarkerSizes();
+            setChildMarkerVisibility();
             processMapFilters();
         },
         error:function(error) {
@@ -1460,6 +1771,18 @@ function loadLocations() {
             map.getSource("locations-data").setData({
                 type:"FeatureCollection",features:locationFeatures
             });
+
+            parentMarkers.forEach(marker => marker.remove());
+            parentMarkers = locationFeatures.map(feature => {
+                const marker = createPhotoMarker(
+                    "parent",
+                    feature.properties.ID,
+                    feature.properties.NAME,
+                    feature.geometry.coordinates
+                );
+                return marker;
+            });
+            updatePhotoMarkerSizes();
 
             loadChildMarkers();
             processMapFilters();
@@ -1559,46 +1882,17 @@ map.on("load",function() {
     });
     loadConnersvilleBoundary();
 
-    /* Parent locations */
+    /* Parent locations are custom photo markers. */
     map.addSource("locations-data",{type:"geojson",data:EMPTY_COLLECTION});
-    map.addLayer({
-        id:"locations-highlight-layer",
-        type:"circle",
-        source:"locations-data",
-        filter:["==",["get","Search_Match"],true],
-        paint:{
-            "circle-radius":14,
-            "circle-color":"#ffffff",
-            "circle-opacity":0,
-            "circle-stroke-width":4,
-            "circle-stroke-color":"#FFD700",
-            "circle-stroke-opacity":0.95
-        }
-    });
-    map.addLayer({
-        id:"locations-layer",
-        type:"circle",
-        source:"locations-data",
-        paint:{
-            "circle-radius":9,
-            "circle-color":"#01796F",
-            "circle-stroke-width":2,
-            "circle-stroke-color":"#ffffff"
-        }
-    });
 
-    /* Child marker connections: these are populated only after a parent is selected. */
+    /* Connector lines remain geographic and are only shown for the selected parent. */
     map.addSource("child-lines-data",{type:"geojson",data:EMPTY_COLLECTION});
     map.addLayer({
         id:"child-lines-casing",
         type:"line",
         source:"child-lines-data",
         layout:{visibility:"none"},
-        paint:{
-            "line-color":"#ffffff",
-            "line-width":4.5,
-            "line-opacity":0.8
-        }
+        paint:{"line-color":"#ffffff","line-width":4.5,"line-opacity":0.72}
     });
     map.addLayer({
         id:"child-lines-layer",
@@ -1607,8 +1901,9 @@ map.on("load",function() {
         layout:{visibility:"none"},
         paint:{
             "line-color":"#463a2d",
-            "line-width":2,
-            "line-dasharray":[2,2]
+            "line-width":2.4,
+            "line-opacity":0.78,
+            "line-dasharray":[1.2,2.2]
         }
     });
 
@@ -1618,16 +1913,11 @@ map.on("load",function() {
         type:"circle",
         source:"child-sites-data",
         layout:{visibility:"none"},
-        paint:{
-            "circle-radius":8,
-            "circle-color":"#C9A227",
-            "circle-opacity":0.98,
-            "circle-stroke-width":2.5,
-            "circle-stroke-color":"#463a2d"
-        }
+        paint:{"circle-radius":1,"circle-opacity":0}
     });
 
     loadLocations();
+
 });
 
 /* Close open panels when Escape is pressed. */
