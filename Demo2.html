@@ -159,17 +159,22 @@ function declutter() {
   const placed = [];
   vis.forEach(it => {
     const p = map.project(it.ll), base = it.r + 12, fixed = rank(it) === 0;
-    let c = null, o = [0, -base];
-    for (let ring = 0; ring < 8 && !c; ring++) {
+    // Score every candidate spot (0 = no overlap) and take the first perfect one, else the least bad.
+    let o = [0, -base], bestScore = Infinity;
+    search: for (let ring = 0; ring < 8; ring++) {
       const R = base + ring * 34, n = ring ? 8 + ring * 4 : 1;
       for (let i = 0; i < n; i++) {
-        const step = Math.ceil(i / 2) * (i % 2 ? 1 : -1), a = -Math.PI / 2 + 2 * Math.PI * step / n, dx = Math.cos(a) * R, dy = Math.sin(a) * R;
-        const t = { x: p.x + dx, y: p.y + dy };
-        o = [dx, dy];
-        if (fixed || placed.every(q =>
-          Math.hypot(q.x - t.x, q.y - t.y) >= q.r + it.r + 4 &&
-          segDist(t.x, t.y, q.tx, q.ty, q.x, q.y) >= it.r + 3 &&
-          segDist(q.x, q.y, p.x, p.y, t.x, t.y) >= q.r + 3)) { c = t; break; }
+        const step = Math.ceil(i / 2) * (i % 2 ? 1 : -1), a = -Math.PI / 2 + 2 * Math.PI * step / n;
+        const dx = Math.cos(a) * R, dy = Math.sin(a) * R, t = { x: p.x + dx, y: p.y + dy };
+        let pen = 0;
+        if (!fixed) placed.forEach(q => {
+          pen += Math.max(0, q.r + it.r + 4 - Math.hypot(q.x - t.x, q.y - t.y));
+          pen += Math.max(0, it.r + 3 - segDist(t.x, t.y, q.tx, q.ty, q.x, q.y));
+          // if this tip sits inside q's circle no direction can avoid it, so don't count that
+          if (Math.hypot(q.x - p.x, q.y - p.y) > q.r + 3) pen += Math.max(0, q.r + 3 - segDist(q.x, q.y, p.x, p.y, t.x, t.y));
+        });
+        if (pen < bestScore) { bestScore = pen; o = [dx, dy]; }
+        if (pen === 0) break search;
       }
     }
     it.off = o;
