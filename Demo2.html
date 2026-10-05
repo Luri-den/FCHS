@@ -20,6 +20,11 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .pin.parent{width:58px;height:58px;border:4px solid var(--c,#E47303);box-shadow:0 0 0 2px #fff,0 1px 5px #0008}
 .pin:focus-visible{outline:3px solid #ff9800}
 .pin.sel{border-color:#ff9800}
+#tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:13px;align-items:center}
+#tools button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000}
+#tools label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
+#tools input[type=range]{flex:1}
+.pin.gone{border-style:dashed}.pin.gone img{filter:grayscale(1)}
 #panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
 #panel img{width:100%;max-height:240px;object-fit:cover;border-radius:6px}
 #panel h2{margin:8px 0 4px;font-size:19px}
@@ -34,6 +39,12 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <h1>Explore Connersville's Past</h1>
   <input id="q" type="search" placeholder="Search places..." aria-label="Search places">
   <ul id="res" hidden></ul>
+  <div id="tools">
+    <button id="near" type="button">Near me</button>
+    <button id="tour" type="button" hidden>Take the tour</button>
+    <label>Year: <b id="yv">All</b><input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
+    <label id="ovw" hidden>Old map <select id="ovs"></select><input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
+  </div>
 </div>
 <div id="map"></div>
 <aside id="panel" hidden aria-live="polite"></aside>
@@ -48,6 +59,9 @@ const SITE = {
   maxBounds: [[-85.40, 39.45], [-84.95, 39.80]],   // [[west, south], [east, north]]
   childZoom: 16,   // at this zoom and closer, parents hide and their children show
   colors: { IND:"#AF350A", CIV:"#E2E1E0", TRANS:"#91AF45", COMM:"#E47303", RES:"#BDD76B", default:"#E47303" }, // Category colors
+  yearMin: 1850, yearMax: 2030,   // slider range; the far-right position (yearMax) means "All"
+  overlays: [],                   // old maps: { name:"1900 map", url:"overlay-1900.png", coords:[[W,N],[E,N],[E,S],[W,S]] }
+  memoryUrl: "",                  // "mailto:you@example.org" or a form link; blank hides the Share link
   files: { locations: "locations.csv", children: "childmarkers.csv", boundary: "connersville.geojson" }
 };
 
@@ -69,8 +83,7 @@ const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 svg.id = "leaders";
 map.getCanvasContainer().appendChild(svg);
 
-let places = [], kids = [], focus = null, sel = null, prev = null;
-let returning = false;
+let places = [], kids = [], focus = null, sel = null, prev = null, returning = false, year = null, stops = [], tourI = -1, me = null;
 
 // Tries several file extensions in thumbs/ (names must match the ID exactly, including capitals).
 const EXT = ["jpg", "jpeg", "png", "webp", "JPG", "PNG"];
@@ -97,6 +110,7 @@ function makePin(item, cls) {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "pin " + cls;
+  if (/\d{4}/.test(item.d.CLSD || "")) b.classList.add("gone");   // closed or gone: dashed ring, gray photo
   b.setAttribute("aria-label", item.name);
   b.appendChild(thumb(item.id));             // no thumbnail: plain teal circle
   item.r = cls === "parent" ? 29 : 22;       // circle radius in pixels
@@ -131,14 +145,25 @@ map.on("load", async () => {
 
   places.forEach(p => makePin(p, p.kids.length ? "parent" : "place"));
   kids.forEach(k => makePin(k, "child"));
+  stops = places.concat(kids).filter(i => parseFloat(i.d.TOUR) > 0).sort((a, b) => parseFloat(a.d.TOUR) - parseFloat(b.d.TOUR));
+  $("tour").hidden = !stops.length;
+  initOverlays();
   update();
 });
 
 // While a parent is selected, only its children show. Otherwise: parents when zoomed out, children when zoomed in.
+const yr4 = v => { const m = /\d{4}/.exec(v || ""); return m ? +m[0] : null; };
+// A site is shown in year Y if it was established by Y (or EST is blank) and not closed by Y (CLSD blank = still there).
+function alive(i) {
+  if (year === null) return true;
+  const e = yr4(i.d.EST), c = yr4(i.d.CLSD);
+  return (e === null || e <= year) && (c === null || c > year);
+}
 function update() {
   const deep = !returning && map.getZoom() >= SITE.childZoom;
-  places.forEach(p => { p.el.style.display = focus ? "none" : (p.kids.length && deep ? "none" : ""); });
-  kids.forEach(k => { k.el.style.display = focus ? (k.parent === focus ? "" : "none") : (deep ? "" : "none"); });
+  const show = (i, v) => { i.el.style.display = v && alive(i) ? "" : "none"; };
+  places.forEach(p => show(p, !focus && !(p.kids.length && deep)));
+  kids.forEach(k => show(k, focus ? k.parent === focus : deep));
   declutter();
   drawLeaders();
 }
@@ -200,6 +225,7 @@ map.on("zoomend", update);
 map.on("render", drawLeaders);
 
 function select(it) {
+  if (tourI >= 0 && stops[tourI] !== it) tourI = -1;
   if (!sel && !prev) prev = { center: map.getCenter(), zoom: map.getZoom() };   // remember the view to return to
   sel = it;
   places.concat(kids).forEach(i => i.el.classList.toggle("sel", i === it));
@@ -209,7 +235,7 @@ function select(it) {
     it.kids.forEach(k => b.extend(k.ll));
     map.fitBounds(b, { padding: 90, maxZoom: 18 });
   } else {
-    if (it.parent) focus = it.parent;
+    focus = it.parent || null;
     map.easeTo({ center: it.ll, zoom: Math.max(map.getZoom(), it.parent ? 17 : 15) });
   }
   const d = it.d, panel = $("panel");
@@ -220,6 +246,16 @@ function select(it) {
     `<p>${esc(d.DETAILS || "")}</p>` +
     (it.kids && it.kids.length ? "<h3>Places here</h3>" + it.kids.map(k => `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`).join("") : "");
   panel.insertBefore(thumb(it.id), panel.querySelector("h2"));
+  const e = yr4(d.EST), c = yr4(d.CLSD);
+  const when = [e ? "Established " + e : "", c ? "Closed " + c : (e ? "Still standing" : "")].filter(Boolean).join(" &middot; ");
+  if (when) panel.querySelector("h2").insertAdjacentHTML("afterend", `<p><b>${when}</b></p>`);
+  if (SITE.memoryUrl) {
+    const m = SITE.memoryUrl.startsWith("mailto:") ? SITE.memoryUrl + "?subject=" + encodeURIComponent("Memory of " + it.name + " (" + it.id + ")") : SITE.memoryUrl;
+    panel.insertAdjacentHTML("beforeend", `<p><a href="${esc(m)}" target="_blank" rel="noopener">Do you have a memory or photo of this place? Share it</a></p>`);
+  }
+  if (tourI >= 0 && stops[tourI] === it) panel.insertAdjacentHTML("beforeend",
+    `<p><b>Tour stop ${tourI + 1} of ${stops.length}</b></p><button class="kid" data-t="-1" ${tourI ? "" : "disabled"}>&larr; Back</button>` +
+    `<button class="kid" data-t="1" ${tourI < stops.length - 1 ? "" : "disabled"}>Next: ${esc((stops[tourI + 1] || {}).name || "end of tour")} &rarr;</button>`);
   panel.hidden = false;
   update();
 }
@@ -227,7 +263,7 @@ function select(it) {
 // X or a click on the map: show everything again and zoom back to where the visitor was.
 function deselect() {
   if (!sel) return;
-  sel = null; focus = null;
+  sel = null; focus = null; tourI = -1;
   $("panel").hidden = true;
   places.concat(kids).forEach(i => i.el.classList.remove("sel"));
   if (prev) {
@@ -240,11 +276,58 @@ function deselect() {
 
 $("panel").onclick = e => {
   if (e.target.closest("#x")) { deselect(); return; }
+  const t = e.target.closest("[data-t]");
+  if (t && !t.disabled) { tourGo(tourI + +t.dataset.t); return; }
   const b = e.target.closest(".kid");
   if (b) { const k = kids.find(x => x.id === b.dataset.id); if (k) select(k); }
 };
 map.on("click", () => { $("res").hidden = true; deselect(); });
 map.on("resize", update);
+
+function tourGo(n) { tourI = n; select(stops[n]); }
+$("tour").onclick = () => tourGo(0);
+
+$("yr").min = SITE.yearMin; $("yr").max = SITE.yearMax; $("yr").step = 10; $("yr").value = SITE.yearMax;
+$("yr").oninput = e => {
+  const v = +e.target.value;
+  year = v >= SITE.yearMax ? null : v;
+  $("yv").textContent = year === null ? "All" : year;
+  update();
+};
+
+function initOverlays() {
+  const o = SITE.overlays;
+  if (!o.length) return;
+  o.forEach((x, n) => {
+    map.addSource("ov" + n, { type: "image", url: x.url, coordinates: x.coords });
+    map.addLayer({ id: "ov" + n, type: "raster", source: "ov" + n, paint: { "raster-opacity": 0 } }, "boundary");
+  });
+  $("ovs").innerHTML = o.map((x, n) => `<option value="${n}">${esc(x.name)}</option>`).join("");
+  $("ovs").hidden = o.length < 2;
+  $("ovw").hidden = false;
+  const apply = () => o.forEach((x, n) => map.setPaintProperty("ov" + n, "raster-opacity", n == $("ovs").value ? $("ov").value / 100 : 0));
+  $("ov").oninput = apply; $("ovs").onchange = apply;
+}
+
+$("near").onclick = () => {
+  const r = $("res"), say = t => { r.innerHTML = `<li style="padding:10px">${t}</li>`; r.hidden = false; };
+  if (!navigator.geolocation) { say("Location isn't available on this device."); return; }
+  say("Finding you...");
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.longitude, pos.coords.latitude], b = SITE.maxBounds;
+    if (ll[0] < b[0][0] || ll[0] > b[1][0] || ll[1] < b[0][1] || ll[1] > b[1][1]) { say("You appear to be outside the map area."); return; }
+    if (me) me.remove();
+    const dot = document.createElement("div");
+    dot.style.cssText = "width:16px;height:16px;border-radius:50%;background:#0072B2;border:3px solid #fff;box-shadow:0 0 0 2px #0072B2";
+    me = new maplibregl.Marker({ element: dot }).setLngLat(ll).addTo(map);
+    const mi = c => { const q = Math.PI / 180, a = Math.sin((c[1] - ll[1]) * q / 2) ** 2 + Math.cos(ll[1] * q) * Math.cos(c[1] * q) * Math.sin((c[0] - ll[0]) * q / 2) ** 2; return 2 * 3958.8 * Math.asin(Math.sqrt(a)); };
+    const hits = places.concat(kids).filter(alive).map(i => ({ i, d: mi(i.ll) })).sort((a, b) => a.d - b.d).slice(0, 5);
+    r._hits = hits.map(h => h.i);
+    r.innerHTML = "<li style='padding:8px 10px;font-size:12px'>Nearest to you (approximate; not for navigation)</li>" +
+      hits.map((h, n) => `<li><button data-i="${n}">${esc(h.i.name)} <small>${h.d < 0.1 ? Math.round(h.d * 5280) + " ft" : h.d.toFixed(1) + " mi"}</small></button></li>`).join("");
+    map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 15) });
+  }, () => say("Couldn't get your location. Check your browser's location permission."), { enableHighAccuracy: true, timeout: 10000 });
+};
 
 $("q").oninput = e => {
   const s = e.target.value.trim().toLowerCase(), r = $("res");
