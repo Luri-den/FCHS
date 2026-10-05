@@ -543,11 +543,33 @@
 .photo-marker.parent .photo-marker-fallback { background: #01796F; }
 .photo-marker.child .photo-marker-fallback { background: #C9A227; color: #463a2d; }
 .photo-marker-image-link { display:block; width:100%; height:100%; border-radius:50%; }
+#child-callout-overlay {
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    z-index:2;
+    overflow:hidden;
+}
+
+#child-callout-overlay .photo-marker {
+    position:absolute;
+    left:0;
+    top:0;
+    transform:translate(-50%, -50%);
+    pointer-events:auto;
+}
+
 #child-connector-overlay {
     position:absolute; inset:0; width:100%; height:100%;
     pointer-events:none; z-index:1; overflow:visible;
 }
 #child-connector-overlay polygon { fill:#463a2d; opacity:.78; }
+#child-connector-overlay line {
+    stroke:#463a2d;
+    stroke-width:1.5;
+    opacity:.82;
+    vector-effect:non-scaling-stroke;
+}
 
 
 #marker-photo-lightbox {
@@ -659,6 +681,7 @@
     <div id="sr-status" class="sr-only" aria-live="polite"></div>
     <div id="search-directions"></div>
     <div id="child-site-labels"></div>
+    <div id="child-callout-overlay" aria-hidden="false"></div>
     <svg id="child-connector-overlay" aria-hidden="true"></svg>
 
     <div id="accessibility-legend">
@@ -796,6 +819,7 @@ const searchBox = document.getElementById("search");
 const clearSearch = document.getElementById("clear-search");
 const searchDirections = document.getElementById("search-directions");
 const childSiteLabels = document.getElementById("child-site-labels");
+const childCalloutOverlay = document.getElementById("child-callout-overlay");
 const childConnectorOverlay = document.getElementById("child-connector-overlay");
 const searchResultsBox = document.getElementById("search-results");
 const noticesOverlay = document.getElementById("notices-overlay");
@@ -1054,6 +1078,78 @@ function createPhotoMarker(type, id, name, coordinates) {
     return marker;
 }
 
+function createChildCalloutMarker(id, name, coordinates) {
+    const element = document.createElement("div");
+    element.className = "photo-marker child";
+    element.dataset.markerId = cleanString(id);
+    element.dataset.markerType = "child";
+    element.setAttribute("role","button");
+    element.setAttribute("tabindex","0");
+    element.setAttribute("aria-label", name || "Related historic marker");
+
+    const link = document.createElement("span");
+    link.className = "photo-marker-image-link";
+    link.setAttribute("aria-hidden","true");
+
+    const fallback = document.createElement("span");
+    fallback.className = "photo-marker-fallback";
+    fallback.textContent = markerInitials(name || id);
+    link.appendChild(fallback);
+    element.appendChild(link);
+
+    const candidates = photoCandidates(id);
+    let candidateIndex = 0;
+    const img = document.createElement("img");
+    img.alt = name || "Historic photograph";
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.style.display = "none";
+
+    function tryNext() {
+        if (candidateIndex >= candidates.length) return;
+        img.src = candidates[candidateIndex++];
+    }
+
+    img.addEventListener("load",function() {
+        fallback.style.display = "none";
+        img.style.display = "block";
+    });
+    img.addEventListener("error",function() {
+        img.style.display = "none";
+        tryNext();
+    });
+    link.insertBefore(img, fallback);
+    tryNext();
+
+    function activate(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        showChildPanel(id);
+    }
+
+    element.addEventListener("click",activate);
+    element.addEventListener("keydown",function(event) {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+
+    childCalloutOverlay.appendChild(element);
+
+    const marker = {
+        _photoElement:element,
+        _photoImage:img,
+        _photoFallback:fallback,
+        _photoId:cleanString(id),
+        _photoName:name || "",
+        _photoType:"child",
+        _photoCoordinates:coordinates,
+        _parentId:"",
+        _calloutOffset:{x:0,y:0},
+        _calloutCenter:{x:0,y:0}
+    };
+
+    return marker;
+}
+
 function markerSizeForZoom(zoom, type) {
     const base = type === "parent" ? 48 : 36;
     const growth = type === "parent" ? 7 : 6;
@@ -1069,6 +1165,7 @@ function updatePhotoMarkerSizes() {
         const size = markerSizeForZoom(zoom, marker._photoType);
         element.style.setProperty("--marker-size",size + "px");
     });
+    if (childConnectionsVisible) updateChildCalloutLayout();
 }
 
 function markerPhotoSource(marker) {
@@ -1118,6 +1215,7 @@ function setChildMarkerVisibility() {
             cleanString(marker._parentId) === cleanString(selectedLocationFeature.properties.ID);
         marker._photoElement.style.display = visible ? "flex" : "none";
     });
+    updateChildCalloutLayout();
 }
 
 function hideChildConnections() {
@@ -1125,7 +1223,9 @@ function hideChildConnections() {
     selectedChildId = "";
     childSiteLabels.innerHTML = "";
     childConnectorOverlay.innerHTML = "";
-    setChildMarkerVisibility();
+    childMarkers.forEach(marker => {
+        marker._photoElement.style.display = "none";
+    });
 
     ["child-sites-data","child-lines-data"].forEach(id => {
         const source = map.getSource(id);
@@ -1162,17 +1262,7 @@ function showChildConnections(parentFeature) {
         }))
     });
 
-    lines.setData({
-        type:"FeatureCollection",
-        features:children.map(row => ({
-            type:"Feature",
-            properties:{CHILD_IS:cleanString(row.CHILD_IS),PARENT_ID:cleanString(row.PARENT_ID)},
-            geometry:{
-                type:"LineString",
-                coordinates:[parentCoords,[parseFloat(row.LONG),parseFloat(row.LAT)]]
-            }
-        }))
-    });
+    lines.setData(EMPTY_COLLECTION);
 
     ["child-lines-casing","child-lines-layer","child-sites-layer"].forEach(id => {
         if (map.getLayer(id)) map.setLayoutProperty(id,"visibility","none");
@@ -1182,42 +1272,154 @@ function showChildConnections(parentFeature) {
     setParentMarkerVisibility();
     setChildMarkerVisibility();
     updateChildSiteLabels();
+    updateChildCalloutLayout();
 }
 
-function updateChildConnectorOverlay() {
-    childConnectorOverlay.innerHTML = "";
-    if (!childConnectionsVisible || !selectedLocationFeature) return;
+function calloutDesiredOffset(index, total, childPoint, parentPoint) {
+    let dx = childPoint.x - parentPoint.x;
+    let dy = childPoint.y - parentPoint.y;
+    const distance = Math.hypot(dx,dy);
 
-    const parentPoint = map.project(selectedLocationFeature.geometry.coordinates);
+    if (distance < 1) {
+        const angle = (-Math.PI / 2) + (index / Math.max(1,total)) * Math.PI * 2;
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+    } else {
+        dx /= distance;
+        dy /= distance;
+    }
+
+    const sideX = -dy;
+    const sideY = dx;
+    const spread = total > 1 ? (index - (total - 1) / 2) * 34 : 0;
+    const radial = 66 + Math.min(28, Math.max(0, total - 2) * 6);
+
+    return {
+        x:dx * radial + sideX * spread,
+        y:dy * radial + sideY * spread
+    };
+}
+
+function rectanglesOverlap(a,b,padding) {
+    const pad = padding || 0;
+    return !(a.right + pad < b.left ||
+             a.left - pad > b.right ||
+             a.bottom + pad < b.top ||
+             a.top - pad > b.bottom);
+}
+
+function updateChildCalloutLayout() {
+    if (!childConnectionsVisible || !selectedLocationFeature) {
+        childConnectorOverlay.innerHTML = "";
+        return;
+    }
+
     const width = map.getContainer().clientWidth;
     const height = map.getContainer().clientHeight;
+    const parentPoint = map.project(selectedLocationFeature.geometry.coordinates);
+    const selectedParentId = cleanString(selectedLocationFeature.properties.ID);
+    const visibleMarkers = childMarkers.filter(marker =>
+        marker._parentId === selectedParentId &&
+        marker._photoElement.style.display !== "none"
+    );
+
     childConnectorOverlay.setAttribute("viewBox","0 0 " + width + " " + height);
+    childConnectorOverlay.setAttribute("width",String(width));
+    childConnectorOverlay.setAttribute("height",String(height));
+    childConnectorOverlay.innerHTML = "";
 
-    childrenForParent(selectedLocationFeature.properties.ID).forEach(row => {
-        const lat = parseFloat(row.LAT), lon = parseFloat(row.LONG);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-        const childPoint = map.project([lon,lat]);
-        const dx = childPoint.x - parentPoint.x;
-        const dy = childPoint.y - parentPoint.y;
-        const length = Math.sqrt(dx*dx + dy*dy);
-        if (length < 8) return;
+    const placements = [];
 
-        const nx = -dy / length;
-        const ny = dx / length;
-        const startWidth = 5.5;
-        const endWidth = 0.9;
-        const x1a = parentPoint.x + nx * startWidth;
-        const y1a = parentPoint.y + ny * startWidth;
-        const x1b = parentPoint.x - nx * startWidth;
-        const y1b = parentPoint.y - ny * startWidth;
-        const x2a = childPoint.x + nx * endWidth;
-        const y2a = childPoint.y + ny * endWidth;
-        const x2b = childPoint.x - nx * endWidth;
-        const y2b = childPoint.y - ny * endWidth;
+    visibleMarkers.forEach((marker,index) => {
+        const point = map.project(marker._photoCoordinates);
+        const offset = calloutDesiredOffset(index,visibleMarkers.length,point,parentPoint);
+        const size = markerSizeForZoom(map.getZoom(),"child");
+        const radius = size / 2;
+
+        let x = point.x + offset.x;
+        let y = point.y + offset.y;
+
+        /* Keep the entire photo near its actual point and inside the map. */
+        const margin = radius + 8;
+        x = Math.max(margin,Math.min(width - margin,x));
+        y = Math.max(margin,Math.min(height - margin,y));
+
+        let rect = {
+            left:x-radius,
+            right:x+radius,
+            top:y-radius,
+            bottom:y+radius
+        };
+
+        /* Deterministically nudge later callouts until they no longer overlap. */
+        for (let attempt=0; attempt<12; attempt++) {
+            let collision = false;
+            for (const placed of placements) {
+                if (rectanglesOverlap(rect,placed.rect,7)) {
+                    collision = true;
+                    break;
+                }
+            }
+            if (!collision) break;
+
+            const angle = (index * 1.7 + attempt * 0.55) * Math.PI / 2;
+            const nudge = 18 + attempt * 8;
+            x += Math.cos(angle) * nudge;
+            y += Math.sin(angle) * nudge;
+            x = Math.max(margin,Math.min(width - margin,x));
+            y = Math.max(margin,Math.min(height - margin,y));
+            rect = {left:x-radius,right:x+radius,top:y-radius,bottom:y+radius};
+        }
+
+        marker._calloutOffset = {x:x-point.x,y:y-point.y};
+        marker._calloutCenter = {x,y};
+        marker._photoElement.style.left = x + "px";
+        marker._photoElement.style.top = y + "px";
+        marker._photoElement.style.display = "flex";
+        placements.push({marker,rect});
+    });
+
+    /* Draw each connector from the true coordinate to the edge of the photo. */
+    placements.forEach(({marker}) => {
+        const actual = map.project(marker._photoCoordinates);
+        const center = marker._calloutCenter;
+        const dx = center.x - actual.x;
+        const dy = center.y - actual.y;
+        const length = Math.hypot(dx,dy);
+        if (length < 3) return;
+
+        const ux = dx / length;
+        const uy = dy / length;
+        const size = markerSizeForZoom(map.getZoom(),"child");
+        const radius = size / 2;
+        const startGap = 2;
+        const endGap = 1;
+        const x1 = actual.x + ux * startGap;
+        const y1 = actual.y + uy * startGap;
+        const x2 = center.x - ux * (radius + endGap);
+        const y2 = center.y - uy * (radius + endGap);
+
+        const nx = -uy;
+        const ny = ux;
+        const startWidth = 2.8;
+        const endWidth = 0.7;
 
         const polygon = document.createElementNS("http://www.w3.org/2000/svg","polygon");
-        polygon.setAttribute("points",`${x1a},${y1a} ${x2a},${y2a} ${x2b},${y2b} ${x1b},${y1b}`);
+        polygon.setAttribute("points",[
+            `${x1 + nx*startWidth},${y1 + ny*startWidth}`,
+            `${x2 + nx*endWidth},${y2 + ny*endWidth}`,
+            `${x2 - nx*endWidth},${y2 - ny*endWidth}`,
+            `${x1 - nx*startWidth},${y1 - ny*startWidth}`
+        ].join(" "));
         childConnectorOverlay.appendChild(polygon);
+
+        const anchor = document.createElementNS("http://www.w3.org/2000/svg","circle");
+        anchor.setAttribute("cx",String(actual.x));
+        anchor.setAttribute("cy",String(actual.y));
+        anchor.setAttribute("r","3");
+        anchor.setAttribute("fill","#463a2d");
+        anchor.setAttribute("opacity","0.9");
+        childConnectorOverlay.appendChild(anchor);
     });
 }
 
@@ -1675,13 +1877,24 @@ resetButton.addEventListener("click",function() {
 /* ---------- MAP CLICKS / HOVER ---------- */
 
 
-map.on("move",updateSearchDirections);
-map.on("zoom",updatePhotoMarkerSizes);
-map.on("zoomend",updateChildSiteLabels);
-map.on("resize",updateSearchDirections);
-map.on("move",updateChildSiteLabels);
-map.on("zoom",updateChildConnectorOverlay);
-map.on("resize",updateChildSiteLabels);
+map.on("move",function() {
+    updateSearchDirections();
+    updateChildSiteLabels();
+    updateChildCalloutLayout();
+});
+map.on("zoom",function() {
+    updatePhotoMarkerSizes();
+    updateChildCalloutLayout();
+});
+map.on("zoomend",function() {
+    updateChildSiteLabels();
+    updateChildCalloutLayout();
+});
+map.on("resize",function() {
+    updateSearchDirections();
+    updateChildSiteLabels();
+    updateChildCalloutLayout();
+});
 
 map.on("click",function(event) {
     const layers = ["locations-layer","child-sites-layer"].filter(id => map.getLayer(id));
@@ -1716,12 +1929,16 @@ function loadChildMarkers() {
                 childrenByParent[row.PARENT_ID].push(row);
             });
 
-            childMarkers.forEach(marker => marker.remove());
+            childCalloutOverlay.innerHTML = "";
+            childMarkers.forEach(marker => {
+                if (marker._photoElement && marker._photoElement.parentNode) {
+                    marker._photoElement.parentNode.removeChild(marker._photoElement);
+                }
+            });
             childMarkers = childRows
                 .filter(row => Number.isFinite(parseFloat(row.LAT)) && Number.isFinite(parseFloat(row.LONG)))
                 .map(row => {
-                    const marker = createPhotoMarker(
-                        "child",
+                    const marker = createChildCalloutMarker(
                         row.CHILD_IS,
                         row.NAME || "Related Marker",
                         [parseFloat(row.LONG),parseFloat(row.LAT)]
