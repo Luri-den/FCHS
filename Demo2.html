@@ -139,6 +139,14 @@ function update() {
   drawLeaders();
 }
 
+// Distance from point (px,py) to the line segment (ax,ay)-(bx,by).
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  let t = ((px - ax) * dx + (py - ay) * dy) / ((dx * dx + dy * dy) || 1);
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
 // Every marker is a circle with a pointer whose tip sits on the true location.
 // The circle rests straight above the tip; if it would overlap another circle it moves
 // around the tip in rings, and the pointer stretches. Parents never move.
@@ -152,15 +160,18 @@ function declutter() {
     for (let ring = 0; ring < 8 && !c; ring++) {
       const R = base + ring * 34, n = ring ? 8 + ring * 4 : 1;
       for (let i = 0; i < n; i++) {
-        const a = -Math.PI / 2 + 2 * Math.PI * i / n, dx = Math.cos(a) * R, dy = Math.sin(a) * R;
+        const step = Math.ceil(i / 2) * (i % 2 ? 1 : -1), a = -Math.PI / 2 + 2 * Math.PI * step / n, dx = Math.cos(a) * R, dy = Math.sin(a) * R;
         const t = { x: p.x + dx, y: p.y + dy };
         o = [dx, dy];
-        if (fixed || placed.every(q => Math.hypot(q.x - t.x, q.y - t.y) >= q.r + it.r + 4)) { c = t; break; }
+        if (fixed || placed.every(q =>
+          Math.hypot(q.x - t.x, q.y - t.y) >= q.r + it.r + 4 &&
+          segDist(t.x, t.y, q.tx, q.ty, q.x, q.y) >= it.r + 3 &&
+          segDist(q.x, q.y, p.x, p.y, t.x, t.y) >= q.r + 3)) { c = t; break; }
       }
     }
     it.off = o;
     it.marker.setOffset(o);
-    placed.push({ x: p.x + o[0], y: p.y + o[1], r: it.r });
+    placed.push({ x: p.x + o[0], y: p.y + o[1], r: it.r, tx: p.x, ty: p.y });
   });
 }
 
