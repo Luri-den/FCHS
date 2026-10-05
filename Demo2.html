@@ -70,6 +70,7 @@ svg.id = "leaders";
 map.getCanvasContainer().appendChild(svg);
 
 let places = [], kids = [], focus = null, sel = null, prev = null;
+let returning = false;
 
 // Tries several file extensions in thumbs/ (names must match the ID exactly, including capitals).
 const EXT = ["jpg", "jpeg", "png", "webp", "JPG", "PNG"];
@@ -135,7 +136,7 @@ map.on("load", async () => {
 
 // While a parent is selected, only its children show. Otherwise: parents when zoomed out, children when zoomed in.
 function update() {
-  const deep = map.getZoom() >= SITE.childZoom;
+  const deep = !returning && map.getZoom() >= SITE.childZoom;
   places.forEach(p => { p.el.style.display = focus ? "none" : (p.kids.length && deep ? "none" : ""); });
   kids.forEach(k => { k.el.style.display = focus ? (k.parent === focus ? "" : "none") : (deep ? "" : "none"); });
   declutter();
@@ -229,8 +230,12 @@ function deselect() {
   sel = null; focus = null;
   $("panel").hidden = true;
   places.concat(kids).forEach(i => i.el.classList.remove("sel"));
-  update();
-  if (prev) { map.flyTo({ center: prev.center, zoom: prev.zoom }); prev = null; }
+  if (prev) {
+    returning = true;                      // hide children now, not at the end of the zoom-out
+    update();
+    map.flyTo({ center: prev.center, zoom: prev.zoom }); prev = null;
+    map.once("moveend", () => { returning = false; update(); });
+  } else update();
 }
 
 $("panel").onclick = e => {
