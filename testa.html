@@ -222,7 +222,15 @@
 }
    
     /* ---------- MAP ---------- */
-    #map { flex: 1; min-height: 0; width: 100%; position: relative; }
+    #map { flex: 1; min-height: 0; width: 100%; position: relative; touch-action: none; }
+
+    /* These custom overlays must never block MapLibre pan/zoom except on the marker itself. */
+    #parent-marker-overlay, #child-callout-overlay, #child-connector-overlay, #search-directions, #child-site-labels {
+        pointer-events: none;
+    }
+    #parent-marker-overlay .photo-marker, #child-callout-overlay .photo-marker, #search-directions .search-direction, #child-site-labels .search-direction {
+        pointer-events: auto;
+    }
 
     /* ---------- INFO PANEL ---------- */
     #info-panel {
@@ -827,7 +835,13 @@ const map = new maplibregl.Map({
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
     maxBounds: MAP_BOUNDS,
-    maxZoom: 22
+    maxZoom: 22,
+    dragPan: true,
+    scrollZoom: true,
+    doubleClickZoom: true,
+    touchZoomRotate: true,
+    boxZoom: true,
+    keyboard: true
 });
 
 const infoPanel = document.getElementById("info-panel");
@@ -1152,6 +1166,7 @@ function createChildCalloutMarker(id, name, coordinates) {
         if (event.key === "Enter" || event.key === " ") activate(event);
     });
 
+    /* Child callouts belong to the child overlay, not the parent overlay. */
     childCalloutOverlay.appendChild(element);
 
     const marker = {
@@ -1915,11 +1930,9 @@ map.on("move",function() {
     updatePhotoMarkerSizes();
     updateSearchDirections();
     updateChildSiteLabels();
-    updateChildCalloutLayout();
 });
 map.on("zoom",function() {
     updatePhotoMarkerSizes();
-    updateChildCalloutLayout();
 });
 map.on("zoomend",function() {
     updateChildSiteLabels();
