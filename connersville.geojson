@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Connersville",
+        "state": "Indiana",
+        "type": "city"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-85.17546896109997, 39.716089170831005],
+            [-85.1097573349711, 39.715042179472704],
+            [-85.11533192793159, 39.62447996523714],
+            [-85.1830920008276, 39.62444418850639]
+          ]
+        ]
+      }
+    }
+  ]
+}
+
