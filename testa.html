@@ -543,6 +543,22 @@
 .photo-marker.parent .photo-marker-fallback { background: #01796F; }
 .photo-marker.child .photo-marker-fallback { background: #C9A227; color: #463a2d; }
 .photo-marker-image-link { display:block; width:100%; height:100%; border-radius:50%; }
+#parent-marker-overlay {
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    z-index:3;
+    overflow:hidden;
+}
+
+#parent-marker-overlay .photo-marker {
+    position:absolute;
+    left:0;
+    top:0;
+    transform:translate(-50%, -50%);
+    pointer-events:auto;
+}
+
 #child-callout-overlay {
     position:absolute;
     inset:0;
@@ -681,6 +697,7 @@
     <div id="sr-status" class="sr-only" aria-live="polite"></div>
     <div id="search-directions"></div>
     <div id="child-site-labels"></div>
+    <div id="parent-marker-overlay" aria-hidden="false"></div>
     <div id="child-callout-overlay" aria-hidden="false"></div>
     <svg id="child-connector-overlay" aria-hidden="true"></svg>
 
@@ -819,6 +836,7 @@ const searchBox = document.getElementById("search");
 const clearSearch = document.getElementById("clear-search");
 const searchDirections = document.getElementById("search-directions");
 const childSiteLabels = document.getElementById("child-site-labels");
+const parentMarkerOverlay = document.getElementById("parent-marker-overlay");
 const childCalloutOverlay = document.getElementById("child-callout-overlay");
 const childConnectorOverlay = document.getElementById("child-connector-overlay");
 const searchResultsBox = document.getElementById("search-results");
@@ -1029,7 +1047,7 @@ function createPhotoMarker(type, id, name, coordinates) {
     const img = document.createElement("img");
     img.alt = name || "Historic photograph";
     img.decoding = "async";
-    img.loading = "lazy";
+    img.loading = "eager";
     img.style.display = "none";
 
     function tryNext() {
@@ -1064,17 +1082,19 @@ function createPhotoMarker(type, id, name, coordinates) {
         if (event.key === "Enter" || event.key === " ") activate(event);
     });
 
-    const marker = new maplibregl.Marker({element:element, anchor:"center"})
-        .setLngLat(coordinates)
-        .addTo(map);
+    parentMarkerOverlay.appendChild(element);
 
-    marker._photoElement = element;
-    marker._photoImage = img;
-    marker._photoFallback = fallback;
-    marker._photoId = cleanString(id);
-    marker._photoName = name || "";
-    marker._photoType = type;
-    marker._photoCoordinates = coordinates;
+    const marker = {
+        _photoElement:element,
+        _photoImage:img,
+        _photoFallback:fallback,
+        _photoId:cleanString(id),
+        _photoName:name || "",
+        _photoType:type,
+        _photoCoordinates:coordinates,
+        _screenPoint:{x:0,y:0}
+    };
+
     return marker;
 }
 
@@ -1102,7 +1122,7 @@ function createChildCalloutMarker(id, name, coordinates) {
     const img = document.createElement("img");
     img.alt = name || "Historic photograph";
     img.decoding = "async";
-    img.loading = "lazy";
+    img.loading = "eager";
     img.style.display = "none";
 
     function tryNext() {
@@ -1159,12 +1179,26 @@ function markerSizeForZoom(zoom, type) {
 
 function updatePhotoMarkerSizes() {
     const zoom = map.getZoom();
-    parentMarkers.concat(childMarkers).forEach(marker => {
+
+    parentMarkers.forEach(marker => {
         const element = marker._photoElement;
         if (!element) return;
-        const size = markerSizeForZoom(zoom, marker._photoType);
+        const size = markerSizeForZoom(zoom, "parent");
+        element.style.setProperty("--marker-size",size + "px");
+
+        const point = map.project(marker._photoCoordinates);
+        element.style.left = point.x + "px";
+        element.style.top = point.y + "px";
+        marker._screenPoint = point;
+    });
+
+    childMarkers.forEach(marker => {
+        const element = marker._photoElement;
+        if (!element) return;
+        const size = markerSizeForZoom(zoom, "child");
         element.style.setProperty("--marker-size",size + "px");
     });
+
     if (childConnectionsVisible) updateChildCalloutLayout();
 }
 
@@ -1878,6 +1912,7 @@ resetButton.addEventListener("click",function() {
 
 
 map.on("move",function() {
+    updatePhotoMarkerSizes();
     updateSearchDirections();
     updateChildSiteLabels();
     updateChildCalloutLayout();
@@ -1989,7 +2024,11 @@ function loadLocations() {
                 type:"FeatureCollection",features:locationFeatures
             });
 
-            parentMarkers.forEach(marker => marker.remove());
+            parentMarkers.forEach(marker => {
+                if (marker._photoElement && marker._photoElement.parentNode) {
+                    marker._photoElement.parentNode.removeChild(marker._photoElement);
+                }
+            });
             parentMarkers = locationFeatures.map(feature => {
                 const marker = createPhotoMarker(
                     "parent",
