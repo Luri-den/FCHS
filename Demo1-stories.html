@@ -3226,10 +3226,10 @@ $("res").onclick =
     card.hidden = false;
   }
 
-  document.body.insertAdjacentHTML("beforeend", `<aside id="tourCard" hidden aria-live="polite"></aside><div id="klegend"><span>${icon("spot", "#444")} Photo spot</span><span>${icon("story", "#444")} Story</span></div>`);
-  $("tour").insertAdjacentHTML("afterend", `<button id="tours" type="button" hidden>Tours</button><button id="stories" type="button" aria-pressed="false">Show all stories</button>`);
+  document.body.insertAdjacentHTML("beforeend", `<aside id="tourCard" hidden aria-live="polite"></aside><div id="klegend"><span>${icon("spot", "#333333")} Photo spot</span><span>${icon("story", "#D55E00")} Story</span></div>`);
+  $("tour").insertAdjacentHTML("afterend", `<button id="tours" type="button" hidden>Tours</button><button id="stories" type="button" aria-pressed="false">Show All Stories and Spots</button>`);
   $("tours").onclick = listTours;
-  $("stories").onclick = () => { showAll = !showAll; $("stories").setAttribute("aria-pressed", showAll); $("stories").textContent = showAll ? "Hide stories" : "Show all stories"; vis(); };
+  $("stories").onclick = () => { showAll = !showAll; $("stories").setAttribute("aria-pressed", showAll); $("stories").textContent = showAll ? "Hide Stories / Spots" : "Show All Stories and Spots"; vis(); };
   $("tourCard").onclick = e => {
     const t = e.target.closest("[data-t]"), g = e.target.closest("[data-g]");
     if (t) { T = tours[+t.dataset.t]; go(0); }
@@ -3250,7 +3250,7 @@ $("res").onclick =
         const b = document.createElement("button");
         b.type = "button"; b.className = "kmark " + kind;
         b.setAttribute("aria-label", (kind === "story" ? "Story: " : "Photo spot: ") + (r.TITLE || id));
-        b.innerHTML = icon(kind, colorOf(r.CATEGORY));
+        b.innerHTML = icon(kind, kind === "story" ? "#D55E00" : "#333333");
         b.onclick = e => { e.stopPropagation(); showSpot(it); };
         it.el = b; it.marker = new maplibregl.Marker({ element: b }).setLngLat(ll).addTo(map);
       } else if ((r.LAT || r.LONG || "").trim()) console.warn("Spot " + id + " needs both LAT and LONG (or neither)");
