@@ -1,0 +1,2320 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explore Connersville's Past</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+html,body{margin:0;height:100%;font-family:Arial,sans-serif}
+#bar{position:absolute;z-index:5;top:0;left:0;right:0;background:#E47303;color:#fff;padding:calc(6px + env(safe-area-inset-top)) 10px 8px}
+#bar h1{font-size:17px;margin:0 0 6px}
+#q{width:100%;box-sizing:border-box;padding:8px;font-size:16px;border:0;border-radius:4px}
+#res{list-style:none;margin:2px 0 0;padding:0;background:#fff;color:#000;border-radius:4px;max-height:40vh;overflow:auto}
+#res button{width:100%;text-align:left;padding:10px;border:0;background:none;font-size:15px;border-bottom:1px solid #eee}
+#map{position:absolute;inset:0}
+#leaders{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#leaders path{fill:#E47303;stroke:#fff;stroke-width:1.5}
+.pin{width:44px;height:44px;border-radius:50%;border:3px solid var(--c,#E47303);background:#E47303;box-shadow:0 0 0 2px #fff,0 1px 4px #0007;padding:0;overflow:hidden;cursor:pointer}
+.pin img{width:100%;height:100%;object-fit:cover;display:block}
+.pin.parent{width:58px;height:58px;border:4px solid var(--c,#E47303);box-shadow:0 0 0 2px #fff,0 1px 5px #0008}
+.pin:focus-visible{outline:3px solid #ff9800}
+.pin.sel{border-color:#ff9800}
+#tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:13px;align-items:center}
+#tools button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000}
+#tools label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
+#tools input[type=range]{flex:1}
+.pin.gone{border-style:dashed}.pin.gone img{filter:grayscale(1)}
+#panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
+#panel img{width:100%;max-height:240px;object-fit:cover;border-radius:6px}
+#panel h2{margin:8px 0 4px;font-size:19px}
+#panel h3{margin:12px 0 4px;font-size:15px}
+#x{position:absolute;right:8px;top:6px;font-size:26px;border:0;background:none}
+.kid{display:block;width:100%;text-align:left;padding:10px;margin:3px 0;border:1px solid #E47303;border-radius:6px;background:#fff;font-size:15px}
+@media(min-width:700px){#panel{left:auto;width:380px;top:96px;bottom:auto;max-height:calc(100% - 110px);right:10px;border-radius:8px}}
+
+/* ============================================================
+WELCOME GIF INTRO
+============================================================ */
+
+#welcomeOverlay {
+position: fixed;
+inset: 0;
+z-index: 99999;
+overflow: hidden;
+pointer-events: auto;
+background: transparent;
+cursor: pointer;
+}
+
+#welcomeImage {
+position: absolute;
+max-width: 100vw;
+max-height: 100vh;
+width: auto;
+height: auto;
+user-select: none;
+-webkit-user-drag: none;
+
+/*
+These variables are set by JavaScript.
+
+```
+ --welcome-x / --welcome-y = screen position of the
+ geographic point when this GIF is map-anchored.
+```
+
+*/
+left: var(--welcome-x, 50%);
+top: var(--welcome-y, 50%);
+
+/*
+Default is the old centered welcome behavior.
+*/
+transform: translate(-50%, calc(-50% + 110vh));
+transition: transform 650ms cubic-bezier(.22,.61,.36,1);
+}
+
+/*
+Normal screen-centered GIF.
+*/
+#welcomeOverlay.show #welcomeImage {
+transform: translate(-50%, -50%);
+}
+
+/*
+Map-anchored GIF.
+
+The bottom-center of the GIF is attached to the
+geographic location.
+*/
+#welcomeImage.mapAnchored {
+transform: translate(-50%, calc(-100% + 110vh));
+}
+
+#welcomeOverlay.show #welcomeImage.mapAnchored {
+transform: translate(-50%, -100%);
+}
+
+#welcomeOverlay.exit #welcomeImage {
+transform: translate(-50%, calc(-50% - 110vh));
+}
+
+#welcomeOverlay.exit #welcomeImage.mapAnchored {
+transform: translate(-50%, calc(-100% - 110vh));
+}
+
+#welcomeSkip {
+position: absolute;
+z-index: 2;
+left: 50%;
+bottom: calc(14px + env(safe-area-inset-bottom));
+transform: translateX(-50%);
+padding: 6px 12px;
+border-radius: 4px;
+background: rgba(0,0,0,.45);
+color: #fff;
+font-size: 12px;
+letter-spacing: .04em;
+pointer-events: none;
+opacity: .8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+#welcomeImage {
+transition: none;
+}
+} </style>
+
+</head>
+<body>
+
+<!-- ============================================================
+     WELCOME GIF INTRO
+     ============================================================ -->
+
+<div id="welcomeOverlay" role="button" aria-label="Skip welcome introduction">
+  <img id="welcomeImage" alt="Discover Historic Connersville">
+  <div id="welcomeSkip">TAP OR CLICK TO SKIP</div>
+</div>
+
+<div id="bar">
+  <h1>Explore Connersville's Past</h1>
+  <input id="q" type="search" placeholder="Search places..." aria-label="Search places">
+  <ul id="res" hidden></ul>
+  <div id="tools">
+    <button id="near" type="button">Near me</button>
+    <button id="tour" type="button" hidden>Take the tour</button>
+    <label>Year: <b id="yv">All</b><input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
+    <label id="ovw" hidden>Old map <select id="ovs"></select><input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
+  </div>
+</div>
+
+<div id="map"></div>
+<aside id="panel" hidden aria-live="polite"></aside>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+
+/* ============================================================
+   WELCOME GIF INTRO
+   ============================================================ */
+
+/*
+   HOW TO ADD YOUR WELCOME GIFS
+   ============================================================
+
+   type: "screen"
+       The GIF is centered on the screen.
+
+   type: "map"
+       The GIF is attached to a geographic location.
+
+       lng = longitude
+       lat = latitude
+
+       The BOTTOM-CENTER of the GIF is treated as the
+       point that touches the map location.
+
+   Example:
+
+   {
+       gif: "discover-museum.gif",
+       type: "map",
+       lng: -85.13692373450816,
+       lat: 39.65014493427057
+   }
+
+   If your GIF has an arrow coming down from its bottom-center,
+   this will make that arrow point directly at the location.
+
+   ============================================================
+ */
+
+
+/*
+   HOW LONG EACH GIF REMAINS ON SCREEN.
+
+   1000 = 1 second
+   1500 = 1.5 seconds
+   2000 = 2 seconds
+   3000 = 3 seconds
+ */
+const WELCOME_DISPLAY_TIME = 1500;
+
+
+/*
+   HOW LONG THE GIF SLIDE ANIMATION TAKES.
+ */
+const WELCOME_TRANSITION_TIME = 650;
+
+
+/*
+   YOUR WELCOME SEQUENCE
+   ============================================================
+
+   Just add/remove entries here as you create GIFs.
+
+   SCREEN EXAMPLE:
+   {
+       gif: "welcome1.gif",
+       type: "screen"
+   }
+
+   MAP EXAMPLE:
+   {
+       gif: "welcome2.gif",
+       type: "map",
+       lng: -85.13889209220456,
+       lat: 39.64753066097082
+   }
+
+   ============================================================
+ */
+
+const WELCOME_STEPS = [
+
+  {
+    gif: "welcome1.gif",
+    type: "screen"
+  },
+
+  {
+    gif: "welcome2.gif",
+    type: "map",
+    lng: -85.13889209220456,
+    lat: 39.64753066097082
+  },
+
+  {
+    gif: "welcome3.gif",
+    type: "map",
+    lng: -85.13692373450816,
+    lat: 39.65014493427057
+  },
+
+  {
+    gif: "welcome4.gif",
+    type: "screen"
+  },
+
+  {
+    gif: "welcome5.gif",
+    type: "screen"
+  }
+
+];
+
+
+(function startWelcome() {
+
+  const overlay = document.getElementById("welcomeOverlay");
+  const image = document.getElementById("welcomeImage");
+
+  if (!overlay || !image || !WELCOME_STEPS.length) return;
+
+  let index = 0;
+  let timer = null;
+  let stopped = false;
+
+
+  /*
+     ------------------------------------------------------------
+     POSITION A MAP-ANCHORED GIF
+     ------------------------------------------------------------
+  */
+
+  function positionWelcomeImage(step) {
+
+    /*
+       Screen-centered GIF.
+    */
+    if (
+      step.type !== "map" ||
+      typeof step.lng !== "number" ||
+      typeof step.lat !== "number"
+    ) {
+
+      image.classList.remove("mapAnchored");
+
+      image.style.setProperty("--welcome-x", "50%");
+      image.style.setProperty("--welcome-y", "50%");
+
+      return;
+    }
+
+
+    /*
+       Convert the geographic coordinate into the exact
+       screen position currently occupied by that location.
+    */
+
+    const point = map.project([step.lng, step.lat]);
+
+
+    image.classList.add("mapAnchored");
+
+    image.style.setProperty("--welcome-x", point.x + "px");
+    image.style.setProperty("--welcome-y", point.y + "px");
+
+  }
+
+
+  /*
+     ------------------------------------------------------------
+     UPDATE THE POSITION IF THE MAP CHANGES
+     ------------------------------------------------------------
+  */
+
+  function updateWelcomePosition() {
+
+    if (stopped) return;
+
+    if (!WELCOME_STEPS[index - 1]) return;
+
+    positionWelcomeImage(WELCOME_STEPS[index - 1]);
+
+  }
+
+
+  /*
+     ------------------------------------------------------------
+     PRELOAD ALL GIFS
+     ------------------------------------------------------------
+  */
+
+  WELCOME_STEPS.forEach(step => {
+
+    const preload = new Image();
+    preload.src = step.gif;
+
+  });
+
+
+  /*
+     ------------------------------------------------------------
+     FINISH
+     ------------------------------------------------------------
+  */
+
+  function finish() {
+
+    if (stopped) return;
+
+    stopped = true;
+
+    clearTimeout(timer);
+
+    overlay.classList.remove("show");
+    overlay.classList.add("exit");
+
+    map.off("move", updateWelcomePosition);
+    map.off("resize", updateWelcomePosition);
+    map.off("zoom", updateWelcomePosition);
+
+    setTimeout(() => {
+
+      overlay.remove();
+
+    }, WELCOME_TRANSITION_TIME);
+
+  }
+
+
+  /*
+     ------------------------------------------------------------
+     SHOW NEXT GIF
+     ------------------------------------------------------------
+  */
+
+  function showNext() {
+
+    if (stopped) return;
+
+
+    if (index >= WELCOME_STEPS.length) {
+
+      finish();
+      return;
+
+    }
+
+
+    const step = WELCOME_STEPS[index];
+
+    index++;
+
+
+    /*
+       Load the GIF.
+    */
+
+    image.src = step.gif;
+
+
+    /*
+       Set its position before showing it.
+    */
+
+    positionWelcomeImage(step);
+
+
+    /*
+       Start below the screen.
+    */
+
+    overlay.classList.remove("show", "exit");
+
+
+    /*
+       Force browser to acknowledge starting position.
+    */
+
+    void image.offsetWidth;
+
+
+    requestAnimationFrame(() => {
+
+      if (stopped) return;
+
+
+      /*
+         Recalculate immediately before the animation begins.
+         This is important for map-anchored GIFs.
+      */
+
+      positionWelcomeImage(step);
+
+
+      overlay.classList.add("show");
+
+
+      /*
+         Stay visible for the configured amount of time.
+      */
+
+      timer = setTimeout(() => {
+
+        if (stopped) return;
+
+
+        overlay.classList.remove("show");
+        overlay.classList.add("exit");
+
+
+        /*
+           Once the image has left the top, prepare the next one.
+        */
+
+        setTimeout(() => {
+
+          if (stopped) return;
+
+          overlay.classList.remove("exit");
+
+          showNext();
+
+        }, WELCOME_TRANSITION_TIME);
+
+      }, WELCOME_DISPLAY_TIME);
+
+    });
+
+  }
+
+
+  /*
+     ------------------------------------------------------------
+     KEEP MAP-ANCHORED GIFS ATTACHED TO THEIR LOCATION
+     ------------------------------------------------------------
+  */
+
+  map.on("move", updateWelcomePosition);
+  map.on("resize", updateWelcomePosition);
+  map.on("zoom", updateWelcomePosition);
+
+
+  /*
+     ------------------------------------------------------------
+     ANY TAP/CLICK SKIPS THE WELCOME SEQUENCE
+     ------------------------------------------------------------
+  */
+
+  overlay.addEventListener("click", finish);
+
+
+  /*
+     ESCAPE ALSO SKIPS ON DESKTOP.
+     */
+
+  document.addEventListener("keydown", e => {
+
+    if (e.key === "Escape") finish();
+
+  }, { once: true });
+
+
+  /*
+     START
+     */
+
+  showNext();
+
+})();
+
+
+/* ============================================================
+   SITE SETTINGS
+   ============================================================ */
+
+const SITE = {
+
+  /*
+     DEFAULT MAP LOADING VIEW
+
+     Longitude: -85.13889209220456
+     Latitude:   39.64753066097082
+
+     MapLibre uses [longitude, latitude].
+  */
+
+  center: [-85.13889209220456, 39.64753066097082],
+
+  zoom: 14,
+
+  maxBounds: [[-85.40, 39.45], [-84.95, 39.80]],
+
+  childZoom: 16,
+
+  colors: {
+    IND:"#AF350A",
+    CIV:"#E2E1E0",
+    TRANS:"#91AF45",
+    COMM:"#E47303",
+    RES:"#BDD76B",
+    default:"#E47303"
+  },
+
+  yearMin: 1850,
+  yearMax: 2030,
+
+  overlays: [
+
+    {
+      name: "1901 Sanborn Map",
+
+      url: "1901-connersville-map.jpg",
+
+      coords: [
+        [-85.145019, 39.658842],
+        [-85.120412, 39.658842],
+        [-85.120412, 39.630195],
+        [-85.145019, 39.630195]
+      ]
+    }
+
+  ],
+
+  memoryUrl: "mailto:connersville@example.org",
+
+  files: {
+    locations: "locations.csv",
+    children: "childmarkers.csv",
+    boundary: "connersville.geojson"
+  }
+
+};
+
+
+const $ = id => document.getElementById(id);
+
+const esc = s => String(s == null ? "" : s).replace(
+  /[&<>"']/g,
+  c => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#39;"
+  }[c])
+);
+
+const key = s => String(s || "").trim().toLowerCase();
+
+
+const map = new maplibregl.Map({
+
+  container: "map",
+
+  style: {
+    version: 8,
+
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: [
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }
+    },
+
+    layers: [
+      {
+        id: "osm",
+        type: "raster",
+        source: "osm"
+      }
+    ]
+  },
+
+  center: SITE.center,
+
+  zoom: SITE.zoom,
+
+  maxBounds: SITE.maxBounds
+
+});
+
+
+map.addControl(
+  new maplibregl.NavigationControl({
+    showCompass: false
+  }),
+  "bottom-right"
+);
+
+map.addControl(
+  new maplibregl.ScaleControl(),
+  "bottom-left"
+);
+
+
+const svg = document.createElementNS(
+  "http://www.w3.org/2000/svg",
+  "svg"
+);
+
+svg.id = "leaders";
+
+map.getCanvasContainer().appendChild(svg);
+
+
+let places = [],
+    kids = [],
+    focus = null,
+    sel = null,
+    prev = null,
+    returning = false,
+    year = null,
+    stops = [],
+    tourI = -1,
+    me = null;
+
+
+/* ============================================================
+   THUMBNAILS
+   ============================================================ */
+
+const EXT = [
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "JPG",
+  "PNG"
+];
+
+
+function thumb(id) {
+
+  const im = new Image();
+
+  im.alt = "";
+
+  let i = 0;
+
+
+  const go = () => {
+
+    im.src =
+      "thumbs/" +
+      encodeURIComponent(id) +
+      "." +
+      EXT[i];
+
+  };
+
+
+  im.onerror = () => {
+
+    if (++i < EXT.length) {
+
+      go();
+
+    } else {
+
+      im.remove();
+
+      console.warn(
+        "No thumbnail found for " +
+        id +
+        " (looked for thumbs/" +
+        id +
+        ".jpg, .jpeg, .png, .webp)"
+      );
+
+    }
+
+  };
+
+
+  go();
+
+  return im;
+
+}
+
+
+/* ============================================================
+   CSV LOADING
+   ============================================================ */
+
+function load(file) {
+
+  return new Promise(resolve => Papa.parse(
+
+    file,
+
+    {
+      download: true,
+      header: true,
+      skipEmptyLines: "greedy",
+
+      complete: r => resolve(r.data),
+
+      error: () => {
+
+        console.warn(
+          "Could not load " + file
+        );
+
+        resolve([]);
+
+      }
+
+    }
+
+  ));
+
+}
+
+
+/* ============================================================
+   MAP PINS
+   ============================================================ */
+
+function makePin(item, cls) {
+
+  const b = document.createElement("button");
+
+  b.type = "button";
+
+  b.className = "pin " + cls;
+
+  if (/\d{4}/.test(item.d.CLSD || "")) {
+
+    b.classList.add("gone");
+
+  }
+
+  b.setAttribute(
+    "aria-label",
+    item.name
+  );
+
+  b.appendChild(
+    thumb(item.id)
+  );
+
+  item.r =
+    cls === "parent"
+      ? 29
+      : 22;
+
+  item.color =
+    SITE.colors[
+      String(
+        item.d.CATEGORY || ""
+      ).trim().toUpperCase()
+    ] ||
+    SITE.colors.default;
+
+  b.style.setProperty(
+    "--c",
+    item.color
+  );
+
+  b.onclick = e => {
+
+    e.stopPropagation();
+
+    select(item);
+
+  };
+
+  item.el = b;
+
+  item.marker =
+    new maplibregl.Marker({
+      element: b
+    })
+    .setLngLat(item.ll)
+    .addTo(map);
+
+}
+
+
+/* ============================================================
+   LOAD MAP DATA
+   ============================================================ */
+
+map.on("load", async () => {
+
+  map.addSource(
+    "boundary",
+    {
+      type: "geojson",
+      data: SITE.files.boundary
+    }
+  );
+
+  map.addLayer({
+
+    id: "boundary",
+
+    type: "line",
+
+    source: "boundary",
+
+    paint: {
+      "line-color": "#E47303",
+      "line-width": 2,
+      "line-dasharray": [3, 2]
+    }
+
+  });
+
+
+  const [L, C] =
+    await Promise.all([
+      load(SITE.files.locations),
+      load(SITE.files.children)
+    ]);
+
+
+  L.forEach(r => {
+
+    const ll = [
+      parseFloat(r.LONG),
+      parseFloat(r.LAT)
+    ];
+
+
+    if (
+      !key(r.ID) ||
+      ll.some(isNaN)
+    ) {
+
+      console.warn(
+        "Skipped location row:",
+        r
+      );
+
+      return;
+
+    }
+
+
+    places.push({
+
+      id: r.ID.trim(),
+
+      name: r.NAME || r.ID,
+
+      ll,
+
+      d: r,
+
+      kids: []
+
+    });
+
+  });
+
+
+  C.forEach(r => {
+
+    const id =
+      (
+        r.CHILD_ID ||
+        r.CHILD_IS ||
+        ""
+      ).trim();
+
+
+    const ll = [
+      parseFloat(r.LONG),
+      parseFloat(r.LAT)
+    ];
+
+
+    const parent =
+      places.find(
+        p =>
+          key(p.id) ===
+          key(r.PARENT_ID)
+      );
+
+
+    if (
+      !id ||
+      ll.some(isNaN) ||
+      !parent
+    ) {
+
+      console.warn(
+        "Skipped child row (bad ID, coordinates, or PARENT_ID):",
+        r
+      );
+
+      return;
+
+    }
+
+
+    const k = {
+
+      id,
+
+      name: r.NAME || id,
+
+      ll,
+
+      d: r,
+
+      parent,
+
+      off: [0, 0]
+
+    };
+
+
+    parent.kids.push(k);
+
+    kids.push(k);
+
+  });
+
+
+  places.forEach(
+    p => makePin(
+      p,
+      p.kids.length
+        ? "parent"
+        : "place"
+    )
+  );
+
+
+  kids.forEach(
+    k => makePin(
+      k,
+      "child"
+    )
+  );
+
+
+  stops =
+    places
+      .concat(kids)
+      .filter(
+        i =>
+          parseFloat(i.d.TOUR) > 0
+      )
+      .sort(
+        (a, b) =>
+          parseFloat(a.d.TOUR) -
+          parseFloat(b.d.TOUR)
+      );
+
+
+  $("tour").hidden =
+    !stops.length;
+
+
+  initOverlays();
+
+  update();
+
+});
+
+
+/* ============================================================
+   YEAR FILTER
+   ============================================================ */
+
+const yr4 = v => {
+
+  const m =
+    /\d{4}/.exec(v || "");
+
+  return m
+    ? +m[0]
+    : null;
+
+};
+
+
+function alive(i) {
+
+  if (year === null)
+    return true;
+
+
+  const e = yr4(i.d.EST);
+
+  const c = yr4(i.d.CLSD);
+
+
+  return (
+    (e === null || e <= year) &&
+    (c === null || c > year)
+  );
+
+}
+
+
+function update() {
+
+  const deep =
+    !returning &&
+    map.getZoom() >=
+    SITE.childZoom;
+
+
+  const show = (i, v) => {
+
+    i.el.style.display =
+      v && alive(i)
+        ? ""
+        : "none";
+
+  };
+
+
+  places.forEach(
+    p =>
+      show(
+        p,
+        !focus &&
+        !(
+          p.kids.length &&
+          deep
+        )
+      )
+  );
+
+
+  kids.forEach(
+    k =>
+      show(
+        k,
+        focus
+          ? k.parent === focus
+          : deep
+      )
+  );
+
+
+  declutter();
+
+  drawLeaders();
+
+}
+
+
+/* ============================================================
+   LEADER LINE COLLISION DETECTION
+   ============================================================ */
+
+function segDist(
+  px,
+  py,
+  ax,
+  ay,
+  bx,
+  by
+) {
+
+  const dx = bx - ax;
+
+  const dy = by - ay;
+
+  let t =
+    (
+      (px - ax) * dx +
+      (py - ay) * dy
+    ) /
+    (
+      (dx * dx + dy * dy) ||
+      1
+    );
+
+
+  t = Math.max(
+    0,
+    Math.min(1, t)
+  );
+
+
+  return Math.hypot(
+    px -
+      ax -
+      t * dx,
+
+    py -
+      ay -
+      t * dy
+  );
+
+}
+
+
+/* ============================================================
+   DECLUTTER MARKERS
+   ============================================================ */
+
+function declutter() {
+
+  const rank =
+    i =>
+      i.kids &&
+      i.kids.length
+        ? 0
+        : (
+          i.parent
+            ? 2
+            : 1
+        );
+
+
+  const vis =
+    places
+      .concat(kids)
+      .filter(
+        i =>
+          i.el.style.display !==
+          "none"
+      )
+      .sort(
+        (a, b) =>
+          rank(a) -
+          rank(b)
+      );
+
+
+  const placed = [];
+
+
+  vis.forEach(it => {
+
+    const p =
+      map.project(it.ll);
+
+
+    const base =
+      it.r + 12;
+
+
+    const fixed =
+      rank(it) === 0;
+
+
+    let o =
+      [0, -base];
+
+
+    let bestScore =
+      Infinity;
+
+
+    search:
+    for (
+      let ring = 0;
+      ring < 8;
+      ring++
+    ) {
+
+      const R =
+        base +
+        ring * 34;
+
+
+      const n =
+        ring
+          ? 8 + ring * 4
+          : 1;
+
+
+      for (
+        let i = 0;
+        i < n;
+        i++
+      ) {
+
+        const step =
+          Math.ceil(i / 2) *
+          (
+            i % 2
+              ? 1
+              : -1
+          );
+
+
+        const a =
+          -Math.PI / 2 +
+          2 *
+          Math.PI *
+          step /
+          n;
+
+
+        const dx =
+          Math.cos(a) * R;
+
+
+        const dy =
+          Math.sin(a) * R;
+
+
+        const t = {
+
+          x: p.x + dx,
+
+          y: p.y + dy
+
+        };
+
+
+        let pen = 0;
+
+
+        if (!fixed) {
+
+          placed.forEach(q => {
+
+            pen += Math.max(
+              0,
+              q.r +
+              it.r +
+              4 -
+              Math.hypot(
+                q.x - t.x,
+                q.y - t.y
+              )
+            );
+
+
+            pen += Math.max(
+              0,
+              it.r +
+              3 -
+              segDist(
+                t.x,
+                t.y,
+                q.tx,
+                q.ty,
+                q.x,
+                q.y
+              )
+            );
+
+
+            if (
+              Math.hypot(
+                q.x - p.x,
+                q.y - p.y
+              ) >
+              q.r + 3
+            ) {
+
+              pen += Math.max(
+                0,
+                q.r +
+                3 -
+                segDist(
+                  q.x,
+                  q.y,
+                  p.x,
+                  p.y,
+                  t.x,
+                  t.y
+                )
+              );
+
+            }
+
+          });
+
+        }
+
+
+        if (
+          pen <
+          bestScore
+        ) {
+
+          bestScore =
+            pen;
+
+          o = [
+            dx,
+            dy
+          ];
+
+        }
+
+
+        if (
+          pen === 0
+        ) {
+
+          break search;
+
+        }
+
+      }
+
+    }
+
+
+    it.off = o;
+
+    it.marker.setOffset(o);
+
+
+    placed.push({
+
+      x:
+        p.x +
+        o[0],
+
+      y:
+        p.y +
+        o[1],
+
+      r:
+        it.r,
+
+      tx:
+        p.x,
+
+      ty:
+        p.y
+
+    });
+
+  });
+
+}
+
+
+/* ============================================================
+   DRAW LEADER LINES
+   ============================================================ */
+
+function drawLeaders() {
+
+  let h = "";
+
+
+  places
+    .concat(kids)
+    .forEach(it => {
+
+      if (
+        it.el.style.display ===
+        "none" ||
+        !it.off
+      ) return;
+
+
+      const t =
+        map.project(it.ll);
+
+
+      const L =
+        Math.hypot(
+          it.off[0],
+          it.off[1]
+        ) || 1;
+
+
+      const ux =
+        it.off[0] / L;
+
+
+      const uy =
+        it.off[1] / L;
+
+
+      const w =
+        it.r * 0.4;
+
+
+      const bx =
+        t.x +
+        it.off[0] -
+        ux *
+        (it.r - 3);
+
+
+      const by =
+        t.y +
+        it.off[1] -
+        uy *
+        (it.r - 3);
+
+
+      h +=
+        `<path style="fill:${it.color}" d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>`;
+
+    });
+
+
+  svg.innerHTML = h;
+
+}
+
+
+map.on(
+  "zoomend",
+  update
+);
+
+map.on(
+  "render",
+  drawLeaders
+);
+
+
+/* ============================================================
+   SELECT PLACE
+   ============================================================ */
+
+function select(it) {
+
+  if (
+    tourI >= 0 &&
+    stops[tourI] !== it
+  )
+    tourI = -1;
+
+
+  if (!sel && !prev)
+
+    prev = {
+
+      center:
+        map.getCenter(),
+
+      zoom:
+        map.getZoom()
+
+    };
+
+
+  sel = it;
+
+
+  places
+    .concat(kids)
+    .forEach(
+      i =>
+        i.el.classList.toggle(
+          "sel",
+          i === it
+        )
+    );
+
+
+  if (
+    it.kids &&
+    it.kids.length
+  ) {
+
+    focus = it;
+
+
+    const b =
+      new maplibregl
+        .LngLatBounds();
+
+
+    it.kids.forEach(
+      k =>
+        b.extend(k.ll)
+    );
+
+
+    map.fitBounds(
+      b,
+      {
+        padding: 90,
+        maxZoom: 18
+      }
+    );
+
+  } else {
+
+    focus =
+      it.parent ||
+      null;
+
+
+    map.easeTo({
+
+      center:
+        it.ll,
+
+      zoom:
+        Math.max(
+          map.getZoom(),
+          it.parent
+            ? 17
+            : 15
+        )
+
+    });
+
+  }
+
+
+  const d = it.d;
+
+  const panel =
+    $("panel");
+
+
+  panel.innerHTML =
+
+    `<button id="x" aria-label="Close">&times;</button>` +
+
+    `<h2>${esc(it.name)}</h2>` +
+
+    (
+      d.HIST_NAMES
+        ? `<p><b>Also known as:</b> ${esc(d.HIST_NAMES)}</p>`
+        : ""
+    ) +
+
+    (
+      d.ADDRESS
+        ? `<p><b>Address:</b> ${esc(d.ADDRESS)}</p>`
+        : ""
+    ) +
+
+    `<p>${esc(d.DETAILS || "")}</p>` +
+
+    (
+      it.kids &&
+      it.kids.length
+
+        ? "<h3>Places here</h3>" +
+
+          it.kids
+            .map(
+              k =>
+                `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`
+            )
+            .join("")
+
+        : ""
+    );
+
+
+  panel.insertBefore(
+    thumb(it.id),
+    panel.querySelector("h2")
+  );
+
+
+  const e =
+    yr4(d.EST);
+
+
+  const c =
+    yr4(d.CLSD);
+
+
+  const when =
+    [
+      e
+        ? "Established " + e
+        : "",
+
+      c
+        ? "Closed " + c
+        : (
+          e
+            ? "Still standing"
+            : ""
+        )
+
+    ]
+    .filter(Boolean)
+    .join(
+      " &middot; "
+    );
+
+
+  if (when)
+
+    panel
+      .querySelector("h2")
+      .insertAdjacentHTML(
+        "afterend",
+        `<p><b>${when}</b></p>`
+      );
+
+
+  if (SITE.memoryUrl) {
+
+    const m =
+      SITE.memoryUrl.startsWith(
+        "mailto:"
+      )
+
+        ? SITE.memoryUrl +
+          "?subject=" +
+          encodeURIComponent(
+            "Memory of " +
+            it.name +
+            " (" +
+            it.id +
+            ")"
+          )
+
+        : SITE.memoryUrl;
+
+
+    panel.insertAdjacentHTML(
+      "beforeend",
+      `<p><a href="${esc(m)}" target="_blank" rel="noopener">Do you have a memory or photo of this place? Share it</a></p>`
+    );
+
+  }
+
+
+  if (
+    tourI >= 0 &&
+    stops[tourI] === it
+  )
+
+    panel.insertAdjacentHTML(
+
+      "beforeend",
+
+      `<p><b>Tour stop ${tourI + 1} of ${stops.length}</b></p>` +
+
+      `<button class="kid" data-t="-1" ${tourI ? "" : "disabled"}>&larr; Back</button>` +
+
+      `<button class="kid" data-t="1" ${tourI < stops.length - 1 ? "" : "disabled"}>Next: ${esc((stops[tourI + 1] || {}).name || "end of tour")} &rarr;</button>`
+
+    );
+
+
+  panel.hidden = false;
+
+
+  update();
+
+}
+
+
+/* ============================================================
+   DESELECT
+   ============================================================ */
+
+function deselect() {
+
+  if (!sel) return;
+
+
+  sel = null;
+
+  focus = null;
+
+  tourI = -1;
+
+  $("panel").hidden = true;
+
+
+  places
+    .concat(kids)
+    .forEach(
+      i =>
+        i.el.classList.remove(
+          "sel"
+        )
+    );
+
+
+  if (prev) {
+
+    returning = true;
+
+    update();
+
+
+    map.flyTo({
+
+      center:
+        prev.center,
+
+      zoom:
+        prev.zoom
+
+    });
+
+
+    prev = null;
+
+
+    map.once(
+      "moveend",
+      () => {
+
+        returning = false;
+
+        update();
+
+      }
+    );
+
+  } else {
+
+    update();
+
+  }
+
+}
+
+
+/* ============================================================
+   PANEL / MAP EVENTS
+   ============================================================ */
+
+$("panel").onclick = e => {
+
+  if (
+    e.target.closest("#x")
+  ) {
+
+    deselect();
+
+    return;
+
+  }
+
+
+  const t =
+    e.target.closest(
+      "[data-t]"
+    );
+
+
+  if (
+    t &&
+    !t.disabled
+  ) {
+
+    tourGo(
+      tourI +
+      +t.dataset.t
+    );
+
+    return;
+
+  }
+
+
+  const b =
+    e.target.closest(
+      ".kid"
+    );
+
+
+  if (b) {
+
+    const k =
+      kids.find(
+        x =>
+          x.id ===
+          b.dataset.id
+      );
+
+
+    if (k)
+      select(k);
+
+  }
+
+};
+
+
+map.on(
+  "click",
+  () => {
+
+    $("res").hidden = true;
+
+    deselect();
+
+  }
+);
+
+
+map.on(
+  "resize",
+  update
+);
+
+
+function tourGo(n) {
+
+  tourI = n;
+
+  select(
+    stops[n]
+  );
+
+}
+
+
+$("tour").onclick = () =>
+  tourGo(0);
+
+
+/* ============================================================
+   YEAR SLIDER
+   ============================================================ */
+
+$("yr").min =
+  SITE.yearMin;
+
+$("yr").max =
+  SITE.yearMax;
+
+$("yr").step =
+  10;
+
+$("yr").value =
+  SITE.yearMax;
+
+
+$("yr").oninput =
+  e => {
+
+    const v =
+      +e.target.value;
+
+
+    year =
+      v >=
+      SITE.yearMax
+        ? null
+        : v;
+
+
+    $("yv").textContent =
+      year === null
+        ? "All"
+        : year;
+
+
+    update();
+
+  };
+
+
+/* ============================================================
+   OLD MAP OVERLAYS
+   ============================================================ */
+
+function initOverlays() {
+
+  const o =
+    SITE.overlays;
+
+
+  if (!o.length)
+    return;
+
+
+  o.forEach(
+    (x, n) => {
+
+      map.addSource(
+        "ov" + n,
+        {
+          type: "image",
+          url: x.url,
+          coordinates: x.coords
+        }
+      );
+
+
+      map.addLayer(
+
+        {
+          id:
+            "ov" + n,
+
+          type:
+            "raster",
+
+          source:
+            "ov" + n,
+
+          paint:
+            {
+              "raster-opacity": 0
+            }
+
+        },
+
+        "boundary"
+
+      );
+
+    }
+  );
+
+
+  $("ovs").innerHTML =
+    o
+      .map(
+        (x, n) =>
+          `<option value="${n}">${esc(x.name)}</option>`
+      )
+      .join("");
+
+
+  $("ovs").hidden =
+    o.length < 2;
+
+
+  $("ovw").hidden =
+    false;
+
+
+  const apply = () =>
+    o.forEach(
+      (x, n) =>
+        map.setPaintProperty(
+          "ov" + n,
+          "raster-opacity",
+          n ==
+          $("ovs").value
+            ? $("ov").value / 100
+            : 0
+        )
+    );
+
+
+  $("ov").oninput =
+    apply;
+
+  $("ovs").onchange =
+    apply;
+
+}
+
+
+/* ============================================================
+   NEAR ME
+   ============================================================ */
+
+$("near").onclick = () => {
+
+  const r =
+    $("res");
+
+
+  const say =
+    t => {
+
+      r.innerHTML =
+        `<li style="padding:10px">${t}</li>`;
+
+      r.hidden =
+        false;
+
+    };
+
+
+  if (
+    !navigator.geolocation
+  ) {
+
+    say(
+      "Location isn't available on this device."
+    );
+
+    return;
+
+  }
+
+
+  say(
+    "Finding you..."
+  );
+
+
+  navigator.geolocation
+    .getCurrentPosition(
+
+      pos => {
+
+        const ll = [
+
+          pos.coords.longitude,
+
+          pos.coords.latitude
+
+        ];
+
+
+        const b =
+          SITE.maxBounds;
+
+
+        if (
+          ll[0] < b[0][0] ||
+          ll[0] > b[1][0] ||
+          ll[1] < b[0][1] ||
+          ll[1] > b[1][1]
+        ) {
+
+          say(
+            "You appear to be outside the map area."
+          );
+
+          return;
+
+        }
+
+
+        if (me)
+          me.remove();
+
+
+        const dot =
+          document.createElement(
+            "div"
+          );
+
+
+        dot.style.cssText =
+          "width:16px;height:16px;border-radius:50%;background:#0072B2;border:3px solid #fff;box-shadow:0 0 0 2px #0072B2";
+
+
+        me =
+          new maplibregl
+            .Marker({
+              element: dot
+            })
+            .setLngLat(ll)
+            .addTo(map);
+
+
+        const mi =
+          c => {
+
+            const q =
+              Math.PI / 180;
+
+
+            const a =
+              Math.sin(
+                (c[1] - ll[1]) *
+                q / 2
+              ) ** 2 +
+
+              Math.cos(
+                ll[1] * q
+              ) *
+
+              Math.cos(
+                c[1] * q
+              ) *
+
+              Math.sin(
+                (c[0] - ll[0]) *
+                q / 2
+              ) ** 2;
+
+
+            return 2 *
+              3958.8 *
+              Math.asin(
+                Math.sqrt(a)
+              );
+
+          };
+
+
+        const hits =
+          places
+            .concat(kids)
+            .filter(alive)
+            .map(
+              i => ({
+                i,
+                d:
+                  mi(i.ll)
+              })
+            )
+            .sort(
+              (a, b) =>
+                a.d - b.d
+            )
+            .slice(0, 5);
+
+
+        r._hits =
+          hits.map(
+            h => h.i
+          );
+
+
+        r.innerHTML =
+
+          "<li style='padding:8px 10px;font-size:12px'>" +
+
+          "Nearest to you (approximate; not for navigation)" +
+
+          "</li>" +
+
+          hits
+            .map(
+              (h, n) =>
+                `<li><button data-i="${n}">${esc(h.i.name)} <small>${h.d < 0.1 ? Math.round(h.d * 5280) + " ft" : h.d.toFixed(1) + " mi"}</small></button></li>`
+            )
+            .join("");
+
+
+        map.easeTo({
+
+          center:
+            ll,
+
+          zoom:
+            Math.max(
+              map.getZoom(),
+              15
+            )
+
+        });
+
+      },
+
+
+      () =>
+        say(
+          "Couldn't get your location. Check your browser's location permission."
+        ),
+
+
+      {
+        enableHighAccuracy:
+          true,
+
+        timeout:
+          10000
+
+      }
+
+    );
+
+};
+
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
+
+$("q").oninput =
+  e => {
+
+    const s =
+      e.target.value
+        .trim()
+        .toLowerCase();
+
+
+    const r =
+      $("res");
+
+
+    if (!s) {
+
+      r.hidden =
+        true;
+
+      return;
+
+    }
+
+
+    const hits =
+      places
+        .concat(kids)
+        .filter(
+          i =>
+            (
+              i.name +
+              " " +
+              (
+                i.d.HIST_NAMES ||
+                ""
+              ) +
+              " " +
+              (
+                i.d.ADDRESS ||
+                ""
+              )
+            )
+            .toLowerCase()
+            .includes(s)
+        )
+        .slice(0, 8);
+
+
+    r.innerHTML =
+      hits
+        .map(
+          (h, i) =>
+            `<li><button data-i="${i}">${esc(h.name)}</button></li>`
+        )
+        .join("") ||
+
+      "<li style='padding:10px'>No matches</li>";
+
+
+    r._hits =
+      hits;
+
+
+    r.hidden =
+      false;
+
+  };
+
+
+$("res").onclick =
+  e => {
+
+    const b =
+      e.target.closest(
+        "button"
+      );
+
+
+    if (b) {
+
+      select(
+        $("res")._hits[
+          b.dataset.i
+        ]
+      );
+
+      $("res").hidden =
+        true;
+
+    }
+
+  };
+
+</script>
+
+</body>
+</html>
