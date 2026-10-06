@@ -130,11 +130,10 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .stamp-card.unlocked img{filter:none;opacity:1}
 
 /* 3D PARALLAX LIGHTBOX */
-#imgView{position:fixed;inset:0;z-index:99998;background:#000ee;display:flex;align-items:center;justify-content:center;perspective:1000px;cursor:zoom-out}
+#imgView{position:fixed;inset:0;z-index:99998;background:#000e;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:zoom-out}
 #imgView[hidden]{display:none}
-.parallax-card{position:relative;max-width:92vw;max-height:88vh;transform-style:preserve-3d;transition:transform 0.1s ease-out;border-radius:12px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.6);background:#111}
-.parallax-card img{width:100%;height:auto;max-height:85vh;object-fit:contain;display:block;transform:translateZ(30px)}
-.parallax-card .caption{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:#fff;padding:12px;font-size:14px;transform:translateZ(50px)}
+#depthCanvas{border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
+#imgView .caption{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);color:#fff;padding:12px;font-size:14px;text-align:center}
 #imgView button.close-lightbox{position:absolute;top:15px;right:20px;font-size:36px;color:#fff;background:none;border:0;cursor:pointer;z-index:99999}
 
 @media(prefers-reduced-motion:reduce){
@@ -212,10 +211,8 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 <!-- 3D LIGHTBOX -->
 <div id="imgView" hidden role="dialog" aria-label="Enlarged photo">
   <button type="button" class="close-lightbox" aria-label="Close">&times;</button>
-  <div class="parallax-card">
-    <img alt="">
-    <div class="caption" style="display:none"></div>
-  </div>
+  <canvas id="depthCanvas"></canvas>
+  <div class="caption" style="display:none"></div>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -1467,71 +1464,256 @@ $("res").onclick = e => {
    ============================================================ */
 (function () {
 
-  const view = document.getElementById("imgView");
-  const card = view.querySelector(".parallax-card");
-  const big = view.querySelector("img");
-  const caption = view.querySelector(".caption");
+/* ============================================================
+   DEPTH PARALLAX LIGHTBOX
+   Paste this in place of everything inside the lightbox IIFE
+   from "const view = ..." down to and including the capture-phase
+   Escape keydown handler. KEEP the "if (!new URLSearchParams(...)
+   .has('spot'))" camera-fit block that comes after it.
+   ============================================================ */
 
-  const closeView = () => {
-    view.hidden = true;
-    big.removeAttribute("src");
-    card.style.transform = "none";
-  };
+const view    = document.getElementById("imgView");
+const canvas  = document.getElementById("depthCanvas");
+const caption = view.querySelector(".caption");
 
-  document.addEventListener("click", e => {
-    const im = e.target.closest("#panel img, #spotCard img, #tourCard img");
-    if (!im) return;
-    const src = im.getAttribute("src");
-    if (!src) return;
-    const shown = im.currentSrc || im.src;
-    const larger = shown.replace("/thumbs/", "/photos/");
-    
-    big.onerror = () => { big.onerror = null; big.src = shown; };
-    big.src = larger;
+const STRENGTH = 0.05;   // how far near things slide against far things (0.02 subtle, 0.08 strong)
+const TILT_DEG = 20;     // degrees of phone tilt that gives full effect
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Check if there's any adjacent title/caption to show in the 3D card
-    const parentContainer = im.closest("#panel, #spotCard, #tourCard");
-    let capText = "";
-    if (parentContainer) {
-      const h2 = parentContainer.querySelector("h2");
-      if (h2) capText = h2.textContent;
-    }
-    if (capText) {
-      caption.textContent = capText;
-      caption.style.display = "block";
-    } else {
-      caption.style.display = "none";
-    }
+/* ---------- WebGL setup ---------- */
 
-    view.hidden = false;
-  });
+const gl = canvas.getContext("webgl", { antialias: false });
+const loc = {};
+let texes = [];
 
-  // 3D Tilt effect on mouse move
-  view.addEventListener("mousemove", e => {
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const xc = rect.width / 2;
-    const yc = rect.height / 2;
-    const dx = (x - xc) / xc;
-    const dy = (y - yc) / yc;
+const VERT = `
+attribute vec2 p;
+varying vec2 uv;
+void main(){
+  uv = p * 0.5 + 0.5;
+  uv.y = 1.0 - uv.y;
+  gl_Position = vec4(p, 0.0, 1.0);
+}`;
 
-    card.style.transform = `rotateY(${dx * 12}deg) rotateX(${-dy * 12}deg)`;
-  });
+// For each pixel: look up its depth, slide the sample point by (depth * tilt),
+// and repeat 3 times so the depth is read from where we actually landed.
+const FRAG = `
+precision mediump float;
+uniform sampler2D img;
+uniform sampler2D depth;
+uniform vec2 tilt;
+uniform float strength;
+varying vec2 uv;
+void main(){
+  vec2 base = (uv - 0.5) * (1.0 - strength) + 0.5;
+  vec2 s = base;
+  for (int i = 0; i < 3; i++) {
+    float d = texture2D(depth, s).r;
+    s = base + tilt * (d - 0.5) * strength;
+  }
+  gl_FragColor = texture2D(img, s);
+}`;
 
-  view.addEventListener("mouseleave", () => {
-    card.style.transform = "rotateY(0deg) rotateX(0deg)";
-  });
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(s));
+  return s;
+}
 
-  view.addEventListener("click", e => {
-    if (e.target === view || e.target.classList.contains("close-lightbox")) {
-      closeView();
-    }
-  });
+if (gl) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
 
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
-  }, true);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const a = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+
+  loc.tilt = gl.getUniformLocation(prog, "tilt");
+  gl.uniform1i(gl.getUniformLocation(prog, "img"), 0);
+  gl.uniform1i(gl.getUniformLocation(prog, "depth"), 1);
+  gl.uniform1f(gl.getUniformLocation(prog, "strength"), STRENGTH);
+}
+
+function makeTexture(unit, source){
+  const t = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  texes.push(t);
+}
+
+/* ---------- Loading ---------- */
+
+const loadImg = src => new Promise((ok, fail) => {
+  const i = new Image();
+  i.onload = () => ok(i);
+  i.onerror = fail;
+  i.src = src;
+});
+
+// Used when a photo has no depth map: a soft "bulge" (center near, edges far).
+// It gives some motion, but it is NOT real depth. Real depth maps look far better.
+function fakeDepth(){
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const x = c.getContext("2d");
+  const g = x.createRadialGradient(128, 128, 10, 128, 128, 180);
+  g.addColorStop(0, "#fff");
+  g.addColorStop(1, "#000");
+  x.fillStyle = g;
+  x.fillRect(0, 0, 256, 256);
+  return c;
+}
+
+/* ---------- Tilt input (gyro first, pointer as fallback) ---------- */
+
+const tilt = { x: 0, y: 0 };
+const target = { x: 0, y: 0 };
+let usingGyro = false, gyroAsked = false, g0 = null, b0 = null;
+
+const clamp = v => Math.max(-1, Math.min(1, v));
+
+function onGyro(e){
+  if (view.hidden || e.gamma == null || e.beta == null) return;
+  usingGyro = true;
+
+  let x = e.gamma, y = e.beta;
+  const ang = (screen.orientation && screen.orientation.angle) || 0;
+  if (ang === 90)  { [x, y] = [y, -x]; }
+  if (ang === 270) { [x, y] = [-y, x]; }
+
+  if (g0 === null) { g0 = x; b0 = y; }       // however they hold the phone = "center"
+  g0 += (x - g0) * 0.02;                      // slowly re-center if they shift posture
+  b0 += (y - b0) * 0.02;
+
+  target.x = clamp((x - g0) / TILT_DEG);
+  target.y = clamp((y - b0) / TILT_DEG);
+}
+
+// iPhones make you ask permission, and it only works inside a tap.
+// Android just works. Both need https (GitHub Pages is fine).
+function enableGyro(){
+  if (gyroAsked || reduceMotion) return;
+  gyroAsked = true;
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function") {
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === "granted") window.addEventListener("deviceorientation", onGyro); })
+      .catch(() => {});
+  } else {
+    window.addEventListener("deviceorientation", onGyro);
+  }
+}
+
+window.addEventListener("orientationchange", () => { g0 = null; });
+
+view.addEventListener("pointermove", e => {
+  if (usingGyro || reduceMotion) return;
+  target.x = (e.clientX / innerWidth  - 0.5) * 2;
+  target.y = (e.clientY / innerHeight - 0.5) * 2;
+});
+
+/* ---------- Open / close ---------- */
+
+let raf = 0, token = 0;
+
+function frame(){
+  tilt.x += (target.x - tilt.x) * 0.12;
+  tilt.y += (target.y - tilt.y) * 0.12;
+  gl.uniform2f(loc.tilt, tilt.x, tilt.y);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  raf = requestAnimationFrame(frame);
+}
+
+function closeView(){
+  token++;
+  cancelAnimationFrame(raf);
+  view.hidden = true;
+  if (gl) texes.forEach(t => gl.deleteTexture(t));
+  texes = [];
+}
+
+async function openView(photoSrc, fallbackSrc, depthSrc, text){
+  const mine = ++token;
+  cancelAnimationFrame(raf);
+  tilt.x = tilt.y = target.x = target.y = 0;
+  g0 = null;
+
+  caption.textContent = text || "";
+  caption.style.display = text ? "block" : "none";
+  view.hidden = false;
+
+  let img;
+  try { img = await loadImg(photoSrc); }
+  catch { try { img = await loadImg(fallbackSrc); } catch { closeView(); return; } }
+  if (mine !== token) return;
+
+  let depth;
+  try { depth = depthSrc ? await loadImg(depthSrc) : fakeDepth(); }
+  catch { depth = fakeDepth(); }
+  if (mine !== token) return;
+
+  // Fit the photo on screen
+  const k = Math.min(innerWidth * 0.92 / img.naturalWidth, innerHeight * 0.85 / img.naturalHeight);
+  const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+
+  if (!gl) {   // no WebGL: show it flat rather than nothing
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  texes.forEach(t => gl.deleteTexture(t));
+  texes = [];
+  makeTexture(0, img);
+  makeTexture(1, depth);
+
+  if (reduceMotion) { frame(); cancelAnimationFrame(raf); }   // one still frame
+  else frame();
+}
+
+/* ---------- Wiring ---------- */
+
+document.addEventListener("click", e => {
+  const im = e.target.closest("#panel img, #spotCard img, #tourCard img");
+  if (!im || !im.getAttribute("src")) return;
+
+  enableGyro();   // must run right here, inside the tap
+
+  const shown = im.currentSrc || im.src;
+  const photo = shown.replace("/thumbs/", "/photos/");
+  // depth/ must hold a grayscale map with the SAME filename as the photo
+  const depth = /\/(thumbs|photos|spots|stories)\//.test(shown)
+    ? shown.replace(/\/(thumbs|photos|spots|stories)\//, "/depth/")
+    : null;
+
+  const holder = im.closest("#panel, #spotCard, #tourCard");
+  const h2 = holder && holder.querySelector("h2");
+
+  openView(photo, shown, depth, h2 ? h2.textContent : "");
+});
+
+view.addEventListener("click", closeView);
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
+}, true);
 
   if (!new URLSearchParams(location.search).has("spot")) {
     let tries = 0;
