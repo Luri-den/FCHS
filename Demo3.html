@@ -68,18 +68,80 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #wsLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 #wsLine path{stroke:#fff;stroke-width:2}
 #wsPhoto{position:absolute;left:14px;top:calc(104px + env(safe-area-inset-top));width:min(46vw,230px);height:min(46vw,230px);border-radius:50%;object-fit:cover;border:8px solid var(--c);background:#fff;box-shadow:0 0 0 3px #fff,0 4px 14px #0007}
-#wsBox{position:absolute;left:14px;top:calc(104px + min(46vw,230px) + 14px + env(safe-area-inset-top));width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006}
+#wsBox{position:absolute;left:14px;top:calc(104px + min(46vw,230px) + 14px + env(safe-area-inset-top));width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006;pointer-events:auto;cursor:pointer}
 #welcomeSite.right #wsPhoto,#welcomeSite.right #wsBox{left:auto;right:14px}
 #wsBox h2{margin:0 0 6px;font-size:21px}
 #wsBox p{margin:0;font-size:16px;line-height:1.35}
 #wsBox small{display:block;margin-top:6px;color:#555}
+#wsBox .go{margin-top:8px;display:inline-block;background:#E47303;color:#fff;border:0;border-radius:4px;padding:8px 12px;font-size:14px;cursor:pointer}
 #welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:wsIn 450ms cubic-bezier(.22,.61,.36,1) both}
 @keyframes wsIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
-.pin.spot{box-shadow:0 0 0 6px #fff,0 0 0 11px var(--c)}
+.pin.spot{box-shadow:0 0 0 6px #fff,0 0 0 11px var(--c);animation:spotPulse 1.6s ease-out infinite}
+@keyframes spotPulse{
+  0%,100%{box-shadow:0 0 0 6px #fff,0 0 0 11px var(--c)}
+  50%    {box-shadow:0 0 0 6px #fff,0 0 0 18px color-mix(in srgb, var(--c) 55%, transparent)}
+}
+
+/* TOUR VEHICLE — a small window that travels along the tour line */
+.travel-clip{
+  width:88px;
+  height:56px;
+  overflow:hidden;
+  pointer-events:none;
+  filter:drop-shadow(0 2px 3px #0006);
+}
+.travel-clip .scene{
+  position:relative;
+  width:100%;
+  height:100%;
+}
+.travel-clip .env{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  height:14px;
+  background-repeat:repeat-x;
+  background-size:60px 14px;
+  animation:scrollEnv 800ms linear infinite;
+}
+.travel-clip.rail .env{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='14' viewBox='0 0 60 14'><rect y='9' width='60' height='3' fill='%23444'/><rect x='2' y='5' width='3' height='9' fill='%23666'/><rect x='17' y='5' width='3' height='9' fill='%23666'/><rect x='32' y='5' width='3' height='9' fill='%23666'/><rect x='47' y='5' width='3' height='9' fill='%23666'/></svg>"); }
+.travel-clip.boat .env{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='14' viewBox='0 0 60 14'><path d='M0 9 Q 15 4 30 9 T 60 9' stroke='%233a6ea8' stroke-width='2' fill='none'/><path d='M0 12 Q 15 8 30 12 T 60 12' stroke='%235a8ec8' stroke-width='1.5' fill='none'/></svg>"); }
+.travel-clip.car .env{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='14' viewBox='0 0 60 14'><rect y='9' width='60' height='5' fill='%23555'/><rect y='9' width='8' height='1' fill='%23eee'/><rect x='30' y='9' width='8' height='1' fill='%23eee'/></svg>"); }
+
+.travel-clip .vehicle{
+  position:absolute;
+  left:50%;
+  bottom:10px;
+  transform:translateX(-50%);
+  animation:vehicleBob 800ms ease-in-out infinite;
+}
+@keyframes vehicleBob{
+  0%,100%{ transform:translateX(-50%) translateY(0); }
+  50%    { transform:translateX(-50%) translateY(-1.5px); }
+}
+@keyframes scrollEnv{
+  from{ background-position-x:0; }
+  to  { background-position-x:-60px; }
+}
+.travel-clip .puff{
+  position:absolute;
+  left:12px;
+  bottom:30px;
+  animation:puff 1600ms ease-out infinite;
+  opacity:0;
+}
+@keyframes puff{
+  0%{ opacity:0; transform:translate(0,0) scale(.6); }
+  30%{ opacity:.7; }
+  100%{ opacity:0; transform:translate(-14px,-10px) scale(1.3); }
+}
 
 @media(prefers-reduced-motion:reduce){
   #welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:none}
   #welcomeImage{transition:none}
+  .pin.spot{animation:none}
+  .travel-clip .vehicle{animation:none}
+  .travel-clip .env{animation:none}
+  .travel-clip .puff{animation:none}
 }
 
 </style>
@@ -92,7 +154,12 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <div id="welcomeSite" hidden>
     <svg id="wsLine"></svg>
     <img id="wsPhoto" alt="">
-    <div id="wsBox"><h2 id="wsName"></h2><p id="wsText"></p><small id="wsIn"></small></div>
+    <div id="wsBox">
+      <h2 id="wsName"></h2>
+      <p id="wsText"></p>
+      <small id="wsIn"></small>
+      <button class="go" id="wsGo" type="button">Go there</button>
+    </div>
   </div>
   <div id="welcomeSkip">TAP OR CLICK TO SKIP</div>
 </div>
@@ -101,20 +168,23 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <div id="spotCard">
     <button id="sp-x" type="button" aria-label="Close">&times;</button>
     <img id="sp-img" alt="" onerror="this.hidden=true">
-    <h2 id="sp-title"></h2><p id="sp-when"><b></b></p><p id="sp-text"></p><small id="sp-credit"></small>
-    <button id="sp-go" type="button">Explore the Map</button>
+    <h2 id="sp-title"></h2>
+    <p id="sp-when"><b></b></p>
+    <p id="sp-text"></p>
+    <small id="sp-credit"></small>
+    <button id="sp-go" type="button">Explore the map</button>
   </div>
 </div>
 
 <div id="bar">
-  <h1>Discover Connersville's Past</h1>
-  <input id="q" type="search" placeholder="Search Places . . . " aria-label="Search places">
+  <h1>Explore Connersville's Past</h1>
+  <input id="q" type="search" placeholder="Search places..." aria-label="Search places">
   <ul id="res" hidden></ul>
   <div id="tools">
-    <button id="near" type="button">Near Me</button>
+    <button id="near" type="button">Near me</button>
     <button id="tour" type="button" hidden>Take the tour</button>
     <label>Year: <b id="yv">All</b> <input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
-    <label id="ovw" hidden>Old Maps <select id="ovs"></select> <input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
+    <label id="ovw" hidden>Old map <select id="ovs"></select> <input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
   </div>
 </div>
 
@@ -139,7 +209,7 @@ const WELCOME_STEPS = [
   { type: "sites" }
 ];
 
-function startWelcome(){
+function startWelcome(featuredId){
 
   const overlay = document.getElementById("welcomeOverlay");
   const image   = document.getElementById("welcomeImage");
@@ -156,6 +226,8 @@ function startWelcome(){
   });
 
   let siteTimer = null, lastId = null, tries = 0;
+  let featuredShown = false;
+  let currentItem = null;
   const siteBox = document.getElementById("welcomeSite");
 
   function startSites() {
@@ -167,14 +239,27 @@ function startWelcome(){
   function nextSite() {
     if (stopped) return;
     document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
+
     const pool = places.concat(kids).filter(i => PHOTO_SRC[i.id]);
     if (!pool.length) {
-      if (++tries > 8) finish(); else siteTimer = setTimeout(nextSite, 600);
+      if (++tries > 20) finish(); else siteTimer = setTimeout(nextSite, 600);
       return;
     }
-    const choices = pool.length > 1 ? pool.filter(i => i.id !== lastId) : pool;
-    const it = choices[Math.floor(Math.random() * choices.length)];
+
+    let it = null;
+
+    // Feature the QR'd item first, if we were given one.
+    if (featuredId && !featuredShown) {
+      it = pool.find(i => key(i.id) === key(featuredId)) || null;
+      if (it) featuredShown = true;
+    }
+
+    if (!it) {
+      const choices = pool.length > 1 ? pool.filter(i => i.id !== lastId) : pool;
+      it = choices[Math.floor(Math.random() * choices.length)];
+    }
     lastId = it.id;
+    currentItem = it;
 
     const tgt = it.el.style.display !== "none" ? it : (it.parent || it);
     const p = map.project(tgt.ll);
@@ -208,6 +293,21 @@ function startWelcome(){
     siteTimer = setTimeout(nextSite, WELCOME_SITE_TIME);
   }
 
+  function goToFeatured() {
+    if (!currentItem) return;
+    const item = currentItem;
+    finish();
+    setTimeout(() => {
+      select(item);
+      map.easeTo({ center: item.ll, zoom: Math.max(map.getZoom(), item.parent ? 17 : 15) });
+    }, WELCOME_TRANSITION_TIME);
+  }
+
+  document.getElementById("wsGo").addEventListener("click", e => {
+    e.stopPropagation();
+    goToFeatured();
+  });
+
   function finish(){
     if (stopped) return;
     stopped = true;
@@ -217,7 +317,6 @@ function startWelcome(){
 
     overlay.classList.remove("show");
     overlay.classList.add("exit");
-
     setTimeout(() => { overlay.remove(); }, WELCOME_TRANSITION_TIME);
   }
 
@@ -230,7 +329,6 @@ function startWelcome(){
     if (step.type === "sites") { startSites(); return; }
 
     image.src = step.gif;
-
     overlay.classList.remove("show", "exit");
     void image.offsetWidth;
 
@@ -252,8 +350,21 @@ function startWelcome(){
     });
   }
 
-  overlay.addEventListener("click", finish);
-  document.addEventListener("keydown", e => { if (e.key === "Escape") finish(); }, { once:true });
+  // Clicking the highlighted marker goes to it. Clicking anywhere else skips.
+  overlay.addEventListener("click", e => {
+    const pin = document.querySelector(".pin.spot");
+    if (pin) {
+      const r = pin.getBoundingClientRect();
+      const hit = e.clientX >= r.left && e.clientX <= r.right &&
+                  e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (hit) { goToFeatured(); return; }
+    }
+    finish();
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") finish();
+  }, { once:true });
 
   showNext();
 }
@@ -325,8 +436,16 @@ const map = new maplibregl.Map({
   maxBounds: SITE.maxBounds
 });
 
+// Welcome runs on every load unless ?skipWelcome=1 is present.
 const spotId = new URLSearchParams(location.search).get("spot");
-startWelcome(spotId);
+const skipWelcome = new URLSearchParams(location.search).has("skipWelcome");
+
+if (skipWelcome) {
+  const w = document.getElementById("welcomeOverlay");
+  if (w) w.remove();
+} else {
+  startWelcome(spotId);
+}
 
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
@@ -337,6 +456,8 @@ map.getCanvasContainer().appendChild(svg);
 
 let places = [], kids = [], focus = null, sel = null, prev = null;
 let returning = false, year = null, stops = [], tourI = -1, me = null;
+let tourGeoJSON = null;
+let travelInProgress = false;
 
 /* ============================================================
    THUMBNAILS
@@ -354,10 +475,7 @@ function thumb(id){
 
   im.onerror = () => {
     if (++i < EXT.length) { go(); }
-    else {
-      im.remove();
-      console.warn("No thumbnail found for " + id + " (looked for thumbs/" + id + ".jpg, .jpeg, .png, .webp)");
-    }
+    else { im.remove(); console.warn("No thumbnail found for " + id); }
   };
 
   im.onload = () => { PHOTO_SRC[id] = im.currentSrc || im.src; };
@@ -427,10 +545,7 @@ map.on("load", async () => {
 
   L.forEach(r => {
     const ll = [parseFloat(r.LONG), parseFloat(r.LAT)];
-    if (!key(r.ID) || ll.some(isNaN)) {
-      console.warn("Skipped location row:", r);
-      return;
-    }
+    if (!key(r.ID) || ll.some(isNaN)) { console.warn("Skipped location row:", r); return; }
     places.push({ id: r.ID.trim(), name: r.NAME || r.ID, ll, d:r, kids:[] });
   });
 
@@ -440,7 +555,7 @@ map.on("load", async () => {
     const parent = places.find(p => key(p.id) === key(r.PARENT_ID));
 
     if (!id || ll.some(isNaN) || !parent) {
-      console.warn("Skipped child row (bad ID, coordinates, or PARENT_ID):", r);
+      console.warn("Skipped child row:", r);
       return;
     }
 
@@ -480,7 +595,6 @@ function alive(i){
 
 function update(){
   const deep = !returning && map.getZoom() >= SITE.childZoom;
-
   const show = (i,v) => { i.el.style.display = (v && alive(i)) ? "" : "none"; };
 
   places.forEach(p => show(p, !focus && !(p.kids.length && deep)));
@@ -538,7 +652,6 @@ function declutter(){
           placed.forEach(q => {
             pen += Math.max(0, q.r + it.r + 4 - Math.hypot(q.x - t.x, q.y - t.y));
             pen += Math.max(0, it.r + 3 - segDist(t.x, t.y, q.tx, q.ty, q.x, q.y));
-
             if (Math.hypot(q.x - p.x, q.y - p.y) > q.r + 3) {
               pen += Math.max(0, q.r + 3 - segDist(q.x, q.y, p.x, p.y, t.x, t.y));
             }
@@ -552,7 +665,6 @@ function declutter(){
 
     it.off = o;
     it.marker.setOffset(o);
-
     placed.push({ x: p.x + o[0], y: p.y + o[1], r: it.r, tx: p.x, ty: p.y });
   });
 }
@@ -563,26 +675,152 @@ function declutter(){
 
 function drawLeaders(){
   let h = "";
-
   places.concat(kids).forEach(it => {
     if (it.el.style.display === "none" || !it.off) return;
-
     const t = map.project(it.ll);
     const L = Math.hypot(it.off[0], it.off[1]) || 1;
     const ux = it.off[0] / L, uy = it.off[1] / L;
     const w = it.r * 0.4;
-
     const bx = t.x + it.off[0] - ux * (it.r - 3);
     const by = t.y + it.off[1] - uy * (it.r - 3);
-
     h += `<path style="fill:${it.color}" d="M${bx - uy*w},${by + ux*w}L${t.x},${t.y}L${bx + uy*w},${by - ux*w}Z"/>`;
   });
-
   svg.innerHTML = h;
 }
 
 map.on("zoomend", update);
 map.on("render", drawLeaders);
+
+/* ============================================================
+   TOUR LINE — GeoJSON source for the whole route
+   ============================================================ */
+
+function setTourLine(coords){
+  if (map.getLayer("tour-line")) map.removeLayer("tour-line");
+  if (map.getSource("tour-line")) map.removeSource("tour-line");
+  if (!coords || coords.length < 2) return;
+
+  tourGeoJSON = {
+    type: "Feature",
+    geometry: { type: "LineString", coordinates: coords }
+  };
+
+  map.addSource("tour-line", { type: "geojson", data: tourGeoJSON });
+
+  map.addLayer({
+    id: "tour-line",
+    type: "line",
+    source: "tour-line",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": "#D55E00",
+      "line-width": 4,
+      "line-opacity": 0.75,
+      "line-dasharray": [2, 1.5]
+    }
+  }, "boundary");
+}
+
+function clearTourLine(){
+  if (map.getLayer("tour-line")) map.removeLayer("tour-line");
+  if (map.getSource("tour-line")) map.removeSource("tour-line");
+  tourGeoJSON = null;
+}
+
+/* ============================================================
+   VEHICLE TRAVEL — vector SVG train/boat/car with scrolling env
+   ============================================================ */
+
+const VEHICLE_SVG = {
+  train: `
+    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
+      <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
+      <rect x="36" y="7" width="6" height="5" fill="#f5e6c8"/>
+      <rect x="44" y="7" width="4" height="5" fill="#f5e6c8"/>
+      <rect x="4" y="18" width="4" height="5" fill="#3a3a3a"/>
+      <circle cx="14" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="24" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="34" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="44" cy="22" r="3" fill="#1c1c1c"/>
+      <rect x="16" y="2" width="4" height="6" fill="#3a3a3a"/>
+      <rect x="6" y="11" width="30" height="2" fill="#E47303"/>
+    </svg>`,
+  boat: `
+    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <path d="M4 20 L10 16 L50 16 L56 20 L56 24 L4 24 Z" fill="#5a3a1a"/>
+      <rect x="14" y="10" width="30" height="6" fill="#8a5a2a"/>
+      <rect x="18" y="12" width="6" height="4" fill="#f5e6c8"/>
+      <rect x="30" y="12" width="6" height="4" fill="#f5e6c8"/>
+      <rect x="4" y="8" width="4" height="8" fill="#3a3a3a"/>
+      <path d="M6 10 Q 20 4 40 8" stroke="#3a3a3a" stroke-width="1.5" fill="none"/>
+      <path d="M6 16 Q 20 20 40 16" stroke="#E47303" stroke-width="1.5" fill="none"/>
+    </svg>`,
+  car: `
+    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <path d="M6 18 L14 12 L44 12 L54 18 L54 24 L6 24 Z" fill="#8b1a1a"/>
+      <rect x="16" y="9" width="24" height="6" fill="#8b1a1a" rx="2"/>
+      <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
+      <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
+      <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
+      <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
+      <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
+    </svg>`
+};
+
+const VEHICLE_PUFF = `
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+    <circle cx="6" cy="10" r="4" fill="#fff" opacity=".85"/>
+    <circle cx="10" cy="7" r="3" fill="#fff" opacity=".6"/>
+  </svg>`;
+
+function travelTo(fromLl, toLl, vehicleKey){
+  return new Promise(resolve => {
+
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || !vehicleKey) {
+      map.easeTo({ center: toLl, duration: 600 });
+      setTimeout(resolve, 600);
+      return;
+    }
+
+    const v = VEHICLE_SVG[vehicleKey] ? vehicleKey : "train";
+
+    const wrap = document.createElement("div");
+    wrap.className = "travel-clip " + v;
+    wrap.innerHTML = `
+      <div class="scene">
+        <div class="env"></div>
+        <div class="vehicle">${VEHICLE_SVG[v]}</div>
+        ${v === "train" ? `<div class="puff">${VEHICLE_PUFF}</div>` : ""}
+      </div>`;
+
+    const marker = new maplibregl.Marker({ element: wrap, anchor: "center" })
+      .setLngLat(fromLl)
+      .addTo(map);
+
+    const midZoom = Math.max(map.getZoom() - 0.3, 14.5);
+    map.jumpTo({ center: fromLl, zoom: midZoom });
+
+    const t0 = performance.now();
+    const DURATION = 1100;
+
+    function frame(now){
+      const t = Math.min((now - t0) / DURATION, 1);
+      const lng = fromLl[0] + (toLl[0] - fromLl[0]) * t;
+      const lat = fromLl[1] + (toLl[1] - fromLl[1]) * t;
+      marker.setLngLat([lng, lat]);
+      map.jumpTo({ center: [lng, lat] });
+
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        marker.remove();
+        map.easeTo({ center: toLl, zoom: 17, duration: 500 });
+        setTimeout(resolve, 500);
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+}
 
 /* ============================================================
    SELECT PLACE
@@ -595,7 +833,6 @@ function select(it){
   if (!sel && !prev) prev = { center: map.getCenter(), zoom: map.getZoom() };
 
   sel = it;
-
   places.concat(kids).forEach(i => i.el.classList.toggle("sel", i === it));
 
   if (it.kids && it.kids.length) {
@@ -632,9 +869,7 @@ function select(it){
     c ? "Closed " + c : (e ? "Still standing" : "")
   ].filter(Boolean).join(" &middot; ");
 
-  if (when) {
-    panel.querySelector("h2").insertAdjacentHTML("afterend", `<p><b>${when}</b></p>`);
-  }
+  if (when) panel.querySelector("h2").insertAdjacentHTML("afterend", `<p><b>${when}</b></p>`);
 
   if (SITE.memoryUrl) {
     const m = SITE.memoryUrl.startsWith("mailto:")
@@ -662,10 +897,9 @@ function select(it){
 
 function deselect(){
   if (!sel) return;
-
   sel = null; focus = null; tourI = -1;
   $("panel").hidden = true;
-
+  clearTourLine();
   places.concat(kids).forEach(i => i.el.classList.remove("sel"));
 
   if (prev) {
@@ -683,11 +917,27 @@ function deselect(){
    PANEL / MAP EVENTS
    ============================================================ */
 
-$("panel").onclick = e => {
+$("panel").onclick = async e => {
   if (e.target.closest("#x")) { deselect(); return; }
 
   const t = e.target.closest("[data-t]");
-  if (t && !t.disabled) { tourGo(tourI + +t.dataset.t); return; }
+  if (t && !t.disabled) {
+    if (travelInProgress) return;
+    travelInProgress = true;
+    try {
+      const from = stops[tourI];
+      const to   = stops[tourI + +t.dataset.t];
+      if (!from || !to) return;
+
+      const vehicle = (from.d.VEHICLE || stops[tourI].d.VEHICLE || "train").trim().toLowerCase();
+      await travelTo(from.ll, to.ll, vehicle);
+
+      tourGo(tourI + +t.dataset.t);
+    } finally {
+      travelInProgress = false;
+    }
+    return;
+  }
 
   const b = e.target.closest(".kid");
   if (b) {
@@ -699,8 +949,17 @@ $("panel").onclick = e => {
 map.on("click", () => { $("res").hidden = true; deselect(); });
 map.on("resize", update);
 
-function tourGo(n){ tourI = n; select(stops[n]); }
-$("tour").onclick = () => tourGo(0);
+function tourGo(n){
+  tourI = n;
+  select(stops[n]);
+}
+
+$("tour").onclick = () => {
+  // Draw the line before jumping to the first stop.
+  const coords = stops.map(s => s.ll);
+  setTourLine(coords);
+  tourGo(0);
+};
 
 /* ============================================================
    YEAR SLIDER
@@ -756,11 +1015,7 @@ function initOverlays(){
 
 $("near").onclick = () => {
   const r = $("res");
-
-  const say = t => {
-    r.innerHTML = `<li style="padding:10px">${t}</li>`;
-    r.hidden = false;
-  };
+  const say = t => { r.innerHTML = `<li style="padding:10px">${t}</li>`; r.hidden = false; };
 
   if (!navigator.geolocation) { say("Location isn't available on this device."); return; }
   say("Finding you...");
@@ -769,11 +1024,9 @@ $("near").onclick = () => {
     pos => {
       const ll = [pos.coords.longitude, pos.coords.latitude];
       const b = SITE.maxBounds;
-
       if (ll[0] < b[0][0] || ll[0] > b[1][0] || ll[1] < b[0][1] || ll[1] > b[1][1]) {
         say("You appear to be outside the map area."); return;
       }
-
       if (me) me.remove();
 
       const dot = document.createElement("div");
@@ -787,14 +1040,11 @@ $("near").onclick = () => {
         return 2 * 3958.8 * Math.asin(Math.sqrt(a));
       };
 
-      const hits = places.concat(kids)
-        .filter(alive)
+      const hits = places.concat(kids).filter(alive)
         .map(h => ({ i:h, d:mi(h.ll) }))
-        .sort((a,b) => a.d - b.d)
-        .slice(0,5);
+        .sort((a,b) => a.d - b.d).slice(0,5);
 
       r._hits = hits.map(h => h.i);
-
       r.innerHTML =
         "<li style='padding:8px 10px;font-size:12px'>Nearest to you (approximate; not for navigation)</li>" +
         hits.map((h,n) =>
@@ -815,7 +1065,6 @@ $("near").onclick = () => {
 $("q").oninput = e => {
   const s = e.target.value.trim().toLowerCase();
   const r = $("res");
-
   if (!s) { r.hidden = true; return; }
 
   const hits = places.concat(kids).filter(i =>
@@ -846,8 +1095,11 @@ $("res").onclick = e => {
   const box = $("spotBox");
   const close = () => { box.hidden = true; };
 
+  /* TEST: reload on Explore. Change to `close()` to just dismiss. */
+  const explore = () => { location.reload(); };
+
   $("sp-x").onclick = close;
-  $("sp-go").onclick = close;
+  $("sp-go").onclick = explore;
   box.onclick = e => { if (e.target === box) close(); };
   document.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
 
@@ -919,7 +1171,6 @@ $("res").onclick = e => {
 
   function showSpot(it) {
     const r = it.r;
-
     $("sp-img").hidden = !r.PHOTO;
     if (r.PHOTO) $("sp-img").src = r.PHOTO;
     $("sp-title").textContent = r.TITLE || "";
@@ -928,7 +1179,6 @@ $("res").onclick = e => {
     $("sp-credit").textContent =
       [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
-
     box.hidden = false;
   }
 
@@ -964,14 +1214,10 @@ $("res").onclick = e => {
       when = r.YEAR || "";
       text = r.DETAILS || "";
       ll = it.ll;
-
       if (r.PHOTO) {
-        img = new Image();
-        img.alt = "";
-        img.src = r.PHOTO;
+        img = new Image(); img.alt = ""; img.src = r.PHOTO;
         img.onerror = () => { img.remove(); };
       }
-
       credit = [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
     } else if (it) {
@@ -1012,20 +1258,17 @@ $("res").onclick = e => {
     $("tc").textContent = credit;
 
     if (img) card.insertBefore(img, card.firstChild);
-
     card.hidden = false;
   }
 
   function listTours() {
     const card = $("tourCard");
-
     card.innerHTML =
       `<h2>Tours</h2>` +
       tours.map((t,i) =>
         `<button class="kid" data-t="${i}"><b>${esc(t.title)}</b><br><small>${esc(t.intro)} (${t.stops.length} stops)</small></button>`
       ).join("") +
       `<button class="kid" data-g="x">Close</button>`;
-
     card.hidden = false;
   }
 
@@ -1049,22 +1292,38 @@ $("res").onclick = e => {
     vis();
   };
 
-  $("tourCard").onclick = e => {
+  $("tourCard").onclick = async e => {
     const t = e.target.closest("[data-t]");
     const g = e.target.closest("[data-g]");
 
     if (t) {
       T = tours[+t.dataset.t];
+      const coords = T.stops.map(st => {
+        const it = byId(st.ITEM_ID);
+        return it && it.ll ? it.ll : null;
+      }).filter(Boolean);
+      setTourLine(coords);
       go(0);
     } else if (g && !g.disabled) {
       if (g.dataset.g === "x") {
         $("tourCard").hidden = true;
         clearHi();
+        clearTourLine();
         T = null;
         focus = null;
         update();
       } else {
-        go(ti + +g.dataset.g);
+        if (travelInProgress) return;
+        travelInProgress = true;
+        try {
+          const fromIt = byId(T.stops[ti].ITEM_ID);
+          const toIt   = byId(T.stops[ti + +g.dataset.g].ITEM_ID);
+          const vehicle = (T.stops[ti].VEHICLE || "train").trim().toLowerCase();
+          if (fromIt && toIt) await travelTo(fromIt.ll, toIt.ll, vehicle);
+          go(ti + +g.dataset.g);
+        } finally {
+          travelInProgress = false;
+        }
       }
     }
   };
@@ -1079,24 +1338,18 @@ $("res").onclick = e => {
     S.forEach(r => {
       const id = (r.SPOT_ID || "").trim();
       if (!id) return;
-
       const kind = key(r.KIND) === "story" ? "story" : "spot";
       const ll = [parseFloat(r.LONG), parseFloat(r.LAT)];
       const ok = !ll.some(isNaN);
-
       const it = { id, r, kind, ll: ok ? ll : null };
 
       if (ok) {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "kmark " + kind;
-        b.setAttribute("aria-label",
-          (kind === "story" ? "Story: " : "Photo spot: ") + (r.TITLE || id));
-
+        b.setAttribute("aria-label", (kind === "story" ? "Story: " : "Photo spot: ") + (r.TITLE || id));
         b.innerHTML = icon(kind, kind === "story" ? "#D55E00" : "#333333");
-
         b.onclick = e => { e.stopPropagation(); showSpot(it); };
-
         it.el = b;
         it.marker = new maplibregl.Marker({ element: b }).setLngLat(ll).addTo(map);
       } else if ((r.LAT || r.LONG || "").trim()) {
@@ -1109,14 +1362,10 @@ $("res").onclick = e => {
     TR.forEach(r => {
       const id = (r.TOUR_ID || "").trim();
       if (!id) return;
-
       const stops = TS
         .filter(x => key(x.TOUR_ID) === key(id))
         .sort((a,b) => parseFloat(a.STEP) - parseFloat(b.STEP));
-
-      if (stops.length) {
-        tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", stops });
-      }
+      if (stops.length) tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", stops });
     });
 
     $("tours").hidden = !tours.length;
@@ -1133,41 +1382,13 @@ $("res").onclick = e => {
 
   const enhancementStyle = document.createElement("style");
   enhancementStyle.textContent = `
-    #panel img,
-    #spotCard img,
-    #tourCard img { cursor: zoom-in; }
-
-    #imgView {
-      position: fixed;
-      inset: 0;
-      z-index: 99998;
-      background: #000e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: zoom-out;
-    }
+    #panel img, #spotCard img, #tourCard img { cursor: zoom-in; }
+    #imgView { position: fixed; inset: 0; z-index: 99998; background: #000e; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
     #imgView[hidden] { display: none; }
-    #imgView img {
-      max-width: 96vw;
-      max-height: 92vh;
-      object-fit: contain;
-    }
-    #imgView button {
-      position: absolute;
-      top: 10px;
-      right: 14px;
-      font-size: 34px;
-      color: #fff;
-      background: none;
-      border: 0;
-    }
-
-    @media (pointer: coarse), (max-width: 700px) {
-      .kmark.story svg { animation: none; }
-    }
+    #imgView img { max-width: 96vw; max-height: 92vh; object-fit: contain; }
+    #imgView button { position: absolute; top: 10px; right: 14px; font-size: 34px; color: #fff; background: none; border: 0; }
+    @media (pointer: coarse), (max-width: 700px) { .kmark.story svg { animation: none; } }
   `;
-
   document.head.appendChild(enhancementStyle);
 
   document.body.insertAdjacentHTML("beforeend", `
@@ -1180,21 +1401,15 @@ $("res").onclick = e => {
   const view = document.getElementById("imgView");
   const big = view.querySelector("img");
 
-  const closeView = () => {
-    view.hidden = true;
-    big.removeAttribute("src");
-  };
+  const closeView = () => { view.hidden = true; big.removeAttribute("src"); };
 
   document.addEventListener("click", e => {
     const im = e.target.closest("#panel img, #spotCard img, #tourCard img");
     if (!im) return;
-
     const src = im.getAttribute("src");
     if (!src) return;
-
     const shown = im.currentSrc || im.src;
     const larger = shown.replace("/thumbs/", "/photos/");
-
     big.onerror = () => { big.onerror = null; big.src = shown; };
     big.src = larger;
     view.hidden = false;
@@ -1203,15 +1418,11 @@ $("res").onclick = e => {
   view.addEventListener("click", closeView);
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !view.hidden) {
-      closeView();
-      e.stopPropagation();
-    }
+    if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
   }, true);
 
   if (!new URLSearchParams(location.search).has("spot")) {
     let tries = 0;
-
     const t = setInterval(() => {
       if (!places.length && ++tries <= 50) return;
       clearInterval(t);
@@ -1224,7 +1435,6 @@ $("res").onclick = e => {
         padding: { top: 160, bottom: 60, left: 40, right: 40 },
         maxZoom: 15
       });
-
       if (!cam) return;
 
       SITE.center = [cam.center.lng, cam.center.lat];
