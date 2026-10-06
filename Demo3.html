@@ -325,12 +325,8 @@ const map = new maplibregl.Map({
   maxBounds: SITE.maxBounds
 });
 
-if (new URLSearchParams(location.search).has("spot")) {
-  const w = document.getElementById("welcomeOverlay");
-  if (w) w.remove();
-} else {
-  startWelcome();
-}
+const spotId = new URLSearchParams(location.search).get("spot");
+startWelcome(spotId);
 
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
