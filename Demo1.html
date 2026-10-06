@@ -288,25 +288,9 @@ html,body{
    an arrow can originate from anywhere within
    the GIF.
 */
-#welcomeImage.mapAnchored{
 
-  transform:
-    translate(
-      -50%,
-      calc(-100% + 110vh)
-    )
 
-}
 
-#welcomeOverlay.show #welcomeImage.mapAnchored{
-
-  transform:
-    translate(
-      -50%,
-      -100%
-    )
-
-}
 
 
 /*
@@ -322,15 +306,7 @@ html,body{
 
 }
 
-#welcomeOverlay.exit #welcomeImage.mapAnchored{
 
-  transform:
-    translate(
-      -50%,
-      calc(-100% - 110vh)
-    )
-
-}
 
 
 /*
@@ -373,7 +349,20 @@ html,body{
 }
 
 
+#welcomeSite{position:absolute;inset:0;pointer-events:none}
+#wsLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#wsLine path{stroke:#fff;stroke-width:2}
+#wsPhoto{position:absolute;left:14px;top:calc(104px + env(safe-area-inset-top));width:min(46vw,230px);height:min(46vw,230px);border-radius:50%;object-fit:cover;border:8px solid var(--c);background:#fff;box-shadow:0 0 0 3px #fff,0 4px 14px #0007}
+#wsBox{position:absolute;left:14px;top:calc(104px + min(46vw,230px) + 14px + env(safe-area-inset-top));width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006}
+#welcomeSite.right #wsPhoto,#welcomeSite.right #wsBox{left:auto;right:14px}
+#wsBox h2{margin:0 0 6px;font-size:21px}
+#wsBox p{margin:0;font-size:16px;line-height:1.35}
+#wsBox small{display:block;margin-top:6px;color:#555}
+#welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:wsIn 450ms cubic-bezier(.22,.61,.36,1) both}
+@keyframes wsIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
+.pin.spot{box-shadow:0 0 0 6px #fff,0 0 0 11px var(--c)}
 @media(prefers-reduced-motion:reduce){
+  #welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:none}
 
   #welcomeImage{
     transition:none
@@ -402,6 +391,12 @@ html,body{
     id="welcomeImage"
     alt="Discover Historic Connersville"
   >
+
+  <div id="welcomeSite" hidden>
+    <svg id="wsLine"></svg>
+    <img id="wsPhoto" alt="">
+    <div id="wsBox"><h2 id="wsName"></h2><p id="wsText"></p><small id="wsIn"></small></div>
+  </div>
 
   <div id="welcomeSkip">
     TAP OR CLICK TO SKIP
@@ -496,32 +491,15 @@ html,body{
    ============================================================ */
 
 /*
-   HOW TO ADD YOUR WELCOME GIFS
+   WELCOME SEQUENCE
    ============================================================
-
-   type: "screen"
-       The GIF is centered on the screen.
-
-   type: "map"
-       The GIF is attached to a geographic location.
-
-       lng = longitude
-       lat = latitude
-
-       Currently, the BOTTOM-CENTER of the GIF is treated
-       as the point that touches the map location.
-
-   IMPORTANT:
-
-   If a GIF is type "map" but lng/lat are missing,
-   it automatically behaves as a centered GIF.
-
-   This means you can create your GIFs first and
-   add map coordinates later.
-
+   1. Your opening GIF(s), centered on the screen.
+   2. The step { type:"sites" } then shows random sites that
+      have a photo, pulled from the map's own markers, until
+      the visitor taps, clicks, or presses Escape.
+   No coordinates are stored here: positions come from the markers.
    ============================================================
 */
-
 
 /*
    HOW LONG EACH GIF REMAINS ON SCREEN.
@@ -542,57 +520,12 @@ const WELCOME_DISPLAY_TIME = 1500;
 const WELCOME_TRANSITION_TIME = 650;
 
 
-/*
-   YOUR WELCOME SEQUENCE
-   ============================================================
-
-   For now, ALL CURRENT GIFs are screen-centered.
-
-   Later, a GIF can become map-targeted simply by changing
-   its type and adding coordinates.
-
-   Example:
-
-   {
-     gif: "museum.gif",
-     type: "map",
-     lng: -85.13692373450816,
-     lat: 39.65014493427057
-   }
-
-   If lng/lat are missing, it remains centered.
-
-   ============================================================
-*/
-
 const WELCOME_STEPS = [
-
-  {
-    gif:"welcome1.gif",
-    type:"screen"
-  },
-
-  {
-    gif:"welcome2.gif",
-    type:"screen"
-  },
-
-  {
-    gif:"welcome3.gif",
-    type:"screen"
-  },
-
-  {
-    gif:"welcome4.gif",
-    type:"screen"
-  },
-
-  {
-    gif:"welcome5.gif",
-    type:"screen"
-  }
-
+  { gif: "welcome1.gif" },
+  { type: "sites" }
 ];
+
+const WELCOME_SITE_TIME = 4000;   // how long each site callout stays (ms)
 
 
 /*
@@ -639,127 +572,6 @@ function startWelcome(){
 
   /*
      ------------------------------------------------------------
-     DETERMINE WHETHER A STEP IS ACTUALLY MAP-ANCHORED
-     ------------------------------------------------------------
-  */
-
-  function isMapAnchored(step){
-
-    return(
-
-      step &&
-
-      step.type === "map" &&
-
-      typeof step.lng === "number" &&
-
-      Number.isFinite(step.lng) &&
-
-      typeof step.lat === "number" &&
-
-      Number.isFinite(step.lat)
-
-    );
-
-  }
-
-
-  /*
-     ------------------------------------------------------------
-     POSITION WELCOME IMAGE
-     ------------------------------------------------------------
-  */
-
-  function positionWelcomeImage(step){
-
-    /*
-       No valid map coordinates?
-
-       Keep the GIF centered.
-    */
-
-    if(
-      !isMapAnchored(step)
-    ){
-
-      image.classList.remove(
-        "mapAnchored"
-      );
-
-      image.style.setProperty(
-        "--welcome-x",
-        "50%"
-      );
-
-      image.style.setProperty(
-        "--welcome-y",
-        "50%"
-      );
-
-      return;
-
-    }
-
-
-    /*
-       Convert geographic coordinates into
-       screen coordinates.
-    */
-
-    const point =
-      map.project([
-        step.lng,
-        step.lat
-      ]);
-
-
-    image.classList.add(
-      "mapAnchored"
-    );
-
-
-    image.style.setProperty(
-      "--welcome-x",
-      point.x + "px"
-    );
-
-    image.style.setProperty(
-      "--welcome-y",
-      point.y + "px"
-    );
-
-  }
-
-
-  /*
-     ------------------------------------------------------------
-     UPDATE MAP-ANCHORED GIF
-     ------------------------------------------------------------
-  */
-
-  function updateWelcomePosition(){
-
-    if(stopped)
-      return;
-
-
-    const step =
-      WELCOME_STEPS[index - 1];
-
-
-    if(!step)
-      return;
-
-
-    positionWelcomeImage(
-      step
-    );
-
-  }
-
-
-  /*
-     ------------------------------------------------------------
      PRELOAD ALL GIFS
      ------------------------------------------------------------
   */
@@ -770,14 +582,70 @@ function startWelcome(){
       const preload =
         new Image();
 
-      preload.src =
-        step.gif;
+      if (step.gif) { preload.src = step.gif; }
 
     }
   );
 
 
-  /*
+  
+  /* ------------------------------------------------------------
+     RANDOM SITE CALLOUTS (uses the real markers; no coordinates)
+     ------------------------------------------------------------ */
+  let siteTimer = null, lastId = null, tries = 0;
+  const siteBox = document.getElementById("welcomeSite");
+
+  function startSites() {
+    image.hidden = true;
+    siteBox.hidden = false;
+    nextSite();
+  }
+
+  function nextSite() {
+    if (stopped) return;
+    document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
+    const pool = places.concat(kids).filter(i => PHOTO_SRC[i.id]);
+    if (!pool.length) {                      // markers or photos not loaded yet
+      if (++tries > 8) finish(); else siteTimer = setTimeout(nextSite, 600);
+      return;
+    }
+    const choices = pool.length > 1 ? pool.filter(i => i.id !== lastId) : pool;
+    const it = choices[Math.floor(Math.random() * choices.length)];
+    lastId = it.id;
+
+    // children are hidden at the opening zoom, so point at their parent's marker
+    const tgt = it.el.style.display !== "none" ? it : (it.parent || it);
+    const p = map.project(tgt.ll);
+    siteBox.classList.toggle("right", p.x < window.innerWidth * 0.5);   // keep the panel off the target
+    siteBox.style.setProperty("--c", it.color);
+
+    const t = (it.d.DETAILS || "").trim(), m = /[.!?](\s|$)/.exec(t);
+    let blurb = m ? t.slice(0, m.index + 1) : t;
+    if (blurb.length > 170) blurb = blurb.slice(0, 167) + "...";
+    const e = yr4(it.d.EST);
+    document.getElementById("wsPhoto").src = PHOTO_SRC[it.id];
+    document.getElementById("wsName").textContent = it.name;
+    document.getElementById("wsText").textContent = blurb;
+    document.getElementById("wsIn").textContent =
+      [it.parent ? "In " + it.parent.name : "", e ? "Established " + e : ""].filter(Boolean).join(" \u00b7 ");
+
+    tgt.el.classList.add("spot");
+
+    // tapered pointer: wide at the box, narrowing to the marker
+    const box = document.getElementById("wsBox");
+    const bl = box.offsetLeft, bt = box.offsetTop, br = bl + box.offsetWidth, bb = bt + box.offsetHeight;
+    const sx = Math.max(bl, Math.min(p.x, br)), sy = Math.max(bt, Math.min(p.y, bb));
+    let dx = p.x - sx, dy = p.y - sy;
+    const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    const w = 14;
+    document.getElementById("wsLine").innerHTML =
+      `<path style="fill:${it.color}" d="M${sx - dy * w},${sy + dx * w}L${p.x},${p.y}L${sx + dy * w},${sy - dx * w}Z"/>`;
+
+    siteBox.classList.remove("in"); void siteBox.offsetWidth; siteBox.classList.add("in");
+    siteTimer = setTimeout(nextSite, WELCOME_SITE_TIME);
+  }
+
+/*
      ------------------------------------------------------------
      FINISH
      ------------------------------------------------------------
@@ -792,9 +660,9 @@ function startWelcome(){
     stopped = true;
 
 
-    clearTimeout(
-      timer
-    );
+    clearTimeout(timer);
+    clearTimeout(siteTimer);
+    document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
 
 
     overlay.classList.remove(
@@ -807,20 +675,11 @@ function startWelcome(){
     );
 
 
-    map.off(
-      "move",
-      updateWelcomePosition
-    );
+    
 
-    map.off(
-      "resize",
-      updateWelcomePosition
-    );
+    
 
-    map.off(
-      "zoom",
-      updateWelcomePosition
-    );
+    
 
 
     setTimeout(
@@ -863,11 +722,9 @@ function startWelcome(){
     }
 
 
-    const step =
-      WELCOME_STEPS[index];
-
-
+    const step = WELCOME_STEPS[index];
     index++;
+    if (step.type === "sites") { startSites(); return; }
 
 
     /*
@@ -882,9 +739,7 @@ function startWelcome(){
        Position it before showing it.
     */
 
-    positionWelcomeImage(
-      step
-    );
+    
 
 
     /*
@@ -917,9 +772,7 @@ function startWelcome(){
            beginning the animation.
         */
 
-        positionWelcomeImage(
-          step
-        );
+        
 
 
         overlay.classList.add(
@@ -989,20 +842,11 @@ function startWelcome(){
      ------------------------------------------------------------
   */
 
-  map.on(
-    "move",
-    updateWelcomePosition
-  );
+  
 
-  map.on(
-    "resize",
-    updateWelcomePosition
-  );
+  
 
-  map.on(
-    "zoom",
-    updateWelcomePosition
-  );
+  
 
 
   /*
@@ -1308,6 +1152,7 @@ const EXT=[
 ];
 
 
+const PHOTO_SRC = {};   // id -> thumbnail URL that actually loaded (used by the welcome callouts)
 function thumb(id){
 
   const im =
@@ -1352,8 +1197,8 @@ function thumb(id){
   };
 
 
+  im.onload = () => { PHOTO_SRC[id] = im.currentSrc || im.src; };
   go();
-
   return im;
 
 }
