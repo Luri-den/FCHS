@@ -1030,10 +1030,11 @@ $("panel").onclick = async e => {
 map.on("click", () => { $("res").hidden = true; deselect(); });
 map.on("resize", update);
 
-function tourGo(n){
-  tourI = n;
-  select(stops[n]);
-}
+  function tourGo(n){
+    tourI = n;
+    select(stops[n]);
+    if (n === stops.length - 1 && window.passportEvent) passportEvent("tour");
+  }
 
 $("tour").onclick = () => {
   const coords = stops.map(s => s.ll);
@@ -1204,6 +1205,7 @@ $("res").onclick = e => {
     
     // Unlock stamp for QR spot
     unlockStamp(id);
+    if (window.passportEvent) passportEvent(key(r.KIND) === "story" ? "story" : "spot");
   });
 })();
 
@@ -1264,6 +1266,7 @@ $("res").onclick = e => {
     
     // Unlock stamp for photo spot / story
     unlockStamp(it.id);
+    if (window.passportEvent) passportEvent(it.kind);
   }
 
   const vis = () => {
@@ -1345,6 +1348,7 @@ $("res").onclick = e => {
 
     if (img) card.insertBefore(img, card.firstChild);
     card.hidden = false;
+    if (n === T.stops.length - 1 && window.passportEvent) passportEvent("tour");
   }
 
   function listTours() {
@@ -1738,6 +1742,300 @@ document.addEventListener("keydown", e => {
   }
 
 })();
+
+  /* ============================================================
+   PASSPORT DEMO:
+   Needs these from the main script: $, esc, UNLOCKED_KEY, VEHICLE_SVG.
+   ============================================================ */
+(function () {
+
+  /* ---------- Settings: edit these ---------- */
+
+  const PASSPORT = {
+    vehicle: "train",   // train, boat or car
+    title: "Railroad",  // printed on the stamp
+    ranks: ["Honorary Junior Engineer", "Honorary Engineer", "Honorary Senior Engineer"],
+    grand: "Connersville Junior Historian",
+    finale: "Show this screen at the museum to claim your certificate.",  // "" to hide
+    tasks: [
+      { id: "tour",  label: "Take a Tour",  hint: "Ride any tour to its last stop.",              btn: "Tours" },
+      { id: "story", label: "Find a Story", hint: "Tap any sparkle on the map.",                  btn: "Show" },
+      { id: "spot",  label: "Visit a Spot", hint: "Tap a camera on the map, or scan a QR sign.",  btn: "Show" }
+    ]
+  };
+
+  const KEY = "connersville_demo_passport";
+
+  /* ---------- Reset: open the page with ?resetpassport ---------- */
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.has("resetpassport")) {
+    try { localStorage.removeItem(KEY); localStorage.removeItem(UNLOCKED_KEY); } catch {}
+    qs.delete("resetpassport");
+    const rest = qs.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+  }
+
+  /* ---------- Saved progress ---------- */
+
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  const save = p => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch {} };
+  const count = p => PASSPORT.tasks.filter(t => p[t.id]).length;
+
+  /* ---------- CSS ---------- */
+
+  document.head.insertAdjacentHTML("beforeend", `<style>
+#passportBtn{position:relative}
+@keyframes pNudge{
+  0%,88%,100%{transform:none}
+  90%{transform:rotate(-12deg)}
+  92%{transform:rotate(10deg)}
+  94%{transform:rotate(-8deg)}
+  96%{transform:rotate(6deg)}
+  98%{transform:rotate(-3deg)}
+}
+#passportBtn.nudge{animation:pNudge 6s ease-in-out 4}
+#passportBtn.nudge::after{content:"";position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:#d40000;box-shadow:0 0 0 2px #fff}
+
+#pSlam{position:fixed;inset:0;z-index:100001;display:none;align-items:center;justify-content:center;background:#000b;overflow:hidden;cursor:pointer;text-align:center;color:#fff;font-family:Arial,sans-serif}
+#pSlam.on{display:flex}
+#pSlam .rays{position:absolute;left:50%;top:50%;width:160vmax;height:160vmax;margin:-80vmax 0 0 -80vmax;background:repeating-conic-gradient(rgba(228,115,3,.6) 0 8deg,rgba(255,194,14,0) 8deg 16deg);-webkit-mask-image:radial-gradient(circle,#000 8%,transparent 60%);mask-image:radial-gradient(circle,#000 8%,transparent 60%);animation:pSpin 30s linear infinite}
+@keyframes pSpin{to{transform:rotate(360deg)}}
+#pSlam canvas{position:absolute;inset:0;pointer-events:none}
+#pSlam .box{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:0 16px;max-width:520px}
+#pSlam.hit .box{animation:pShake .35s .28s}
+@keyframes pShake{
+  0%,100%{transform:none}
+  20%{transform:translate(-8px,5px)}
+  40%{transform:translate(7px,-6px)}
+  60%{transform:translate(-5px,3px)}
+  80%{transform:translate(3px,-2px)}
+}
+#pSlam .seal{width:min(62vw,250px);height:min(62vw,250px);box-sizing:border-box;border-radius:50%;background:#fffdf6;border:10px solid #D55E00;box-shadow:inset 0 0 0 4px #fffdf6,inset 0 0 0 7px #D55E00;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#D55E00;transform:rotate(-6deg);filter:url(#pInk);animation:pSlamIn .5s cubic-bezier(.2,.8,.3,1) both}
+#pSlam .seal svg{width:58%;height:auto}
+#pSlam .seal b{font-size:19px;letter-spacing:.1em;text-transform:uppercase}
+@keyframes pSlamIn{
+  0%{transform:scale(3.4) rotate(-20deg);opacity:0}
+  55%{transform:scale(.9) rotate(-4deg);opacity:1}
+  75%{transform:scale(1.05) rotate(-7deg)}
+  100%{transform:scale(1) rotate(-6deg);opacity:1}
+}
+#pSlam .stars{display:flex;gap:10px}
+#pSlam .stars svg{width:52px;height:52px;display:block;filter:drop-shadow(0 2px 3px #0008)}
+#pSlam .stars .on path{fill:#FFC20E;stroke:#fff;stroke-width:1.2}
+#pSlam .stars .off path{fill:#ffffff33;stroke:#fff9;stroke-width:1.2}
+#pSlam .stars .new{animation:pThump .45s .75s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pThump{from{transform:scale(0) rotate(-90deg);opacity:0}to{transform:none;opacity:1}}
+#pSlam .rank{font-size:clamp(22px,6vw,32px);font-weight:bold;text-shadow:0 2px 6px #000a;animation:pFade .5s 1s both}
+#pSlam .grand{font-size:clamp(20px,5.5vw,28px);font-weight:bold;color:#FFC20E;text-shadow:0 2px 6px #000a;animation:pFade .5s 1.6s both}
+#pSlam .note{font-size:15px;animation:pFade .5s 2s both}
+#pSlam .tap{font-size:12px;letter-spacing:.05em;opacity:.8;margin-top:6px}
+@keyframes pFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+#pTasks{margin-bottom:16px}
+#pTasks h3{margin:0 0 4px;font-size:16px}
+#pTasks .mini{display:flex;gap:4px;margin:2px 0 8px}
+#pTasks .mini svg{width:26px;height:26px;display:block}
+#pTasks .mini .on path{fill:#FFC20E;stroke:#c98a00;stroke-width:1}
+#pTasks .mini .off path{fill:#eee;stroke:#bbb;stroke-width:1}
+.ptask{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #ddd;border-radius:8px;background:#fff;margin:6px 0}
+.ptask.done{border-color:#E47303;background:#fff8f0}
+.ptask .mark{font-size:20px;width:22px;text-align:center}
+.ptask b{display:block;font-size:14px}
+.ptask small{color:#666}
+.pbtn{margin-left:auto;padding:6px 10px;border:0;border-radius:4px;background:#E47303;color:#fff;cursor:pointer;font-size:13px}
+#pTasks .pbtn.alone{margin:6px 0 0}
+#pTasks .pgrand{margin:8px 0 0;font-weight:bold;color:#AF350A}
+
+@media(prefers-reduced-motion:reduce){
+  #pSlam *{animation:none!important}
+  #passportBtn.nudge{animation:none;outline:3px solid #fff}
+}
+</style>`);
+
+  /* ---------- Markup ---------- */
+
+  const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
+  const starRow = (n, newest) =>
+    [1, 2, 3].map(i => `<span class="${i <= n ? "on" : "off"}${i === newest ? " new" : ""}">${STAR}</span>`).join("");
+
+  document.body.insertAdjacentHTML("beforeend", `
+<div id="pSlam" role="dialog" aria-modal="true" aria-labelledby="pRank" tabindex="-1">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="pInk"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/></filter>
+  </svg>
+  <div class="rays"></div>
+  <canvas></canvas>
+  <div class="box"></div>
+</div>`);
+
+  document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pTasks"></div>`);
+
+  const slam = document.getElementById("pSlam");
+  const btn = $("passportBtn");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Confetti ---------- */
+
+  let stopConfetti = null;
+
+  function confetti(canvas) {
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width = innerWidth, H = canvas.height = innerHeight;
+    const colors = ["#E47303", "#AF350A", "#91AF45", "#BDD76B", "#FFC20E", "#ffffff"];
+    const bits = Array.from({ length: 150 }, () => ({
+      x: Math.random() * W, y: -20 - Math.random() * H * 0.6,
+      w: 6 + Math.random() * 6, h: 10 + Math.random() * 8,
+      vx: -1 + Math.random() * 2, vy: 2 + Math.random() * 3.5,
+      r: Math.random() * 6.28, vr: -0.2 + Math.random() * 0.4,
+      c: colors[Math.floor(Math.random() * colors.length)]
+    }));
+    const t0 = performance.now();
+    let id = 0;
+    (function tick(now) {
+      ctx.clearRect(0, 0, W, H);
+      bits.forEach(b => {
+        b.x += b.vx; b.y += b.vy; b.r += b.vr;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.r);
+        ctx.fillStyle = b.c;
+        ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+        ctx.restore();
+      });
+      if (now - t0 < 4500) id = requestAnimationFrame(tick);
+      else ctx.clearRect(0, 0, W, H);
+    })(t0);
+    return () => { cancelAnimationFrame(id); ctx.clearRect(0, 0, W, H); };
+  }
+
+  /* ---------- The slam screen ---------- */
+
+  let queue = [], showing = false, autoTimer = 0;
+
+  function celebrate(n, replay) {
+    queue.push({ n, replay });
+    pump();
+  }
+
+  function pump() {
+    if (showing || !queue.length) return;
+    // Never fight the welcome sequence
+    if (document.getElementById("welcomeOverlay")) { setTimeout(pump, 500); return; }
+    showing = true;
+    const job = queue.shift();
+    // Short pause so the card the person just opened can appear first
+    setTimeout(() => render(job.n, job.replay), job.replay ? 0 : 600);
+  }
+
+  function render(n, replay) {
+    const done = n >= PASSPORT.tasks.length;
+    const rank = PASSPORT.ranks[Math.min(n, PASSPORT.ranks.length) - 1] || "";
+
+    slam.querySelector(".box").innerHTML =
+      `<div class="seal">${VEHICLE_SVG[PASSPORT.vehicle] || VEHICLE_SVG.train}<b>${esc(PASSPORT.title)}</b></div>` +
+      `<div class="stars">${starRow(n, replay ? 0 : n)}</div>` +
+      `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
+      (done
+        ? `<div class="grand">${esc(PASSPORT.grand)}</div>` +
+          (PASSPORT.finale ? `<div class="note">${esc(PASSPORT.finale)}</div>` : "")
+        : "") +
+      `<div class="tap">TAP TO CONTINUE</div>`;
+
+    slam.classList.add("on", "hit");
+    slam.focus();
+
+    if (done && !reduceMotion) stopConfetti = confetti(slam.querySelector("canvas"));
+    if (!done) autoTimer = setTimeout(() => dismiss(replay), 6000);   // the final one waits for a tap
+  }
+
+  function dismiss(replay) {
+    if (!slam.classList.contains("on")) return;
+    clearTimeout(autoTimer);
+    if (stopConfetti) { stopConfetti(); stopConfetti = null; }
+    slam.classList.remove("on", "hit");
+    showing = false;
+    if (replay !== true) btn.classList.add("nudge");
+    renderTasks();
+    pump();
+  }
+
+  slam.addEventListener("click", () => dismiss());
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && slam.classList.contains("on")) { dismiss(); e.stopPropagation(); }
+  }, true);
+
+  /* ---------- The task list inside the passport drawer ---------- */
+
+  function renderTasks() {
+    const p = load();
+    const n = count(p);
+
+    $("pTasks").innerHTML =
+      `<h3>${esc(PASSPORT.title)} stamp: ${n} of ${PASSPORT.tasks.length}</h3>` +
+      `<div class="mini">${starRow(n, 0)}</div>` +
+      PASSPORT.tasks.map(t => `
+        <div class="ptask ${p[t.id] ? "done" : ""}">
+          <span class="mark" aria-hidden="true">${p[t.id] ? "&#10004;" : "&#9675;"}</span>
+          <div><b>${esc(t.label)}</b><small>${esc(t.hint)}</small></div>
+          ${p[t.id] ? "" : `<button type="button" class="pbtn" data-do="${esc(t.id)}">${esc(t.btn)}</button>`}
+        </div>`).join("") +
+      (n ? `<button type="button" class="pbtn alone" data-do="replay">Show my stamp</button>` : "") +
+      (p.done ? `<p class="pgrand">${esc(PASSPORT.grand)}</p>` : "");
+  }
+
+  $("pTasks").addEventListener("click", e => {
+    const b = e.target.closest("[data-do]");
+    if (!b) return;
+    const what = b.dataset.do;
+
+    $("passportDrawer").classList.remove("open");
+
+    if (what === "replay") { celebrate(count(load()), true); return; }
+
+    if (what === "tour") {
+      const t = $("tours"), o = $("tour");
+      if (t && !t.hidden) t.click();
+      else if (o && !o.hidden) o.click();
+    } else {
+      const s = $("stories");   // shows every story and spot on the map
+      if (s && s.getAttribute("aria-pressed") !== "true") s.click();
+    }
+  });
+
+  btn.addEventListener("click", () => {
+    btn.classList.remove("nudge");
+    const p = load();
+    if (!p.seen) { p.seen = true; save(p); }
+    renderTasks();
+  });
+
+  /* ---------- Called from the four hooks ---------- */
+
+  window.passportEvent = type => {
+    if (!PASSPORT.tasks.some(t => t.id === type)) return;
+    const p = load();
+    if (p[type]) return;           // each task only counts once
+    p[type] = true;
+    const n = count(p);
+    if (n >= PASSPORT.tasks.length) p.done = true;
+    save(p);
+    renderTasks();
+    celebrate(n, false);
+  };
+
+  /* ---------- First-visit nudge, after the welcome sequence ---------- */
+
+  function nudgeWhenReady() {
+    if (document.getElementById("welcomeOverlay")) { setTimeout(nudgeWhenReady, 2000); return; }
+    btn.classList.add("nudge");
+  }
+  if (!load().seen) setTimeout(nudgeWhenReady, 8000);
+
+  renderTasks();
+
+})();
+
 
 </script>
 </body>
