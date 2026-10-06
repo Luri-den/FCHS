@@ -3265,6 +3265,54 @@ $("res").onclick =
     vis(); map.on("zoomend", vis);
   });
 })();
+
+  // ============================================================
+// ENHANCEMENTS: tap photos to enlarge, fit all markers at start, calm stories on phones
+// Paste this whole block just above the LAST </script> line of your page.
+// ============================================================
+(function () {
+  document.head.insertAdjacentHTML("beforeend", `<style>
+#panel img,#spotCard img,#tourCard img{cursor:zoom-in}
+#imgView{position:fixed;inset:0;z-index:99998;background:#000e;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+#imgView[hidden]{display:none}
+#imgView img{max-width:96vw;max-height:92vh;object-fit:contain}
+#imgView button{position:absolute;top:10px;right:14px;font-size:34px;color:#fff;background:none;border:0}
+@media (pointer:coarse),(max-width:700px){.kmark.story svg{animation:none}}
+</style>`);
+
+  // 1. Tap or click a photo to enlarge it (looks in photos/ for a bigger copy of a thumbnail, else uses what is shown)
+  document.body.insertAdjacentHTML("beforeend", '<div id="imgView" hidden role="dialog" aria-label="Enlarged photo"><img alt=""><button type="button" aria-label="Close">&times;</button></div>');
+  const view = document.getElementById("imgView"), big = view.querySelector("img");
+  const closeView = () => { view.hidden = true; big.removeAttribute("src"); };
+  document.addEventListener("click", e => {
+    const im = e.target.closest("#panel img, #spotCard img, #tourCard img");
+    if (!im || !im.getAttribute("src")) return;
+    const shown = im.currentSrc || im.src, larger = shown.replace("/thumbs/", "/photos/");
+    big.onerror = () => { big.onerror = null; big.src = shown; };
+    big.src = larger;
+    view.hidden = false;
+  });
+  view.onclick = closeView;
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); } }, true);
+
+  // 2. Opening view fits every place marker on screen (children and spots are hidden at that zoom, so they are not counted)
+  if (!new URLSearchParams(location.search).has("spot")) {
+    let tries = 0;
+    const t = setInterval(() => {
+      if (!places.length && ++tries <= 50) return;
+      clearInterval(t);
+      if (!places.length) return;
+      const b = new maplibregl.LngLatBounds();
+      places.forEach(p => b.extend(p.ll));
+      const cam = map.cameraForBounds(b, { padding: { top: 160, bottom: 60, left: 40, right: 40 }, maxZoom: 15 });
+      if (!cam) return;
+      SITE.center = [cam.center.lng, cam.center.lat];    // "Explore the map" and other return trips use this view too
+      SITE.zoom = cam.zoom;
+      map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
+    }, 100);
+  }
+})();
+
 </script>
 
 </body>
