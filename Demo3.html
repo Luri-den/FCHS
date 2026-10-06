@@ -655,7 +655,7 @@ function startWelcome(){
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     const w = 14;
     document.getElementById("wsLine").innerHTML =
-      `<path style="fill:${it.color}" d="M${sx - dy * w},${sy + dx * w}L${p.x},${p.y}L${sx + dy * w},${sy - dx * w}Z"/>`;
+      <path style="fill:${it.color}" d="M${sx - dy * w},${sy + dx * w}L${p.x},${p.y}L${sx + dy * w},${sy - dx * w}Z"/>;
 
     siteBox.classList.remove("in"); void siteBox.offsetWidth; siteBox.classList.add("in");
     siteTimer = setTimeout(nextSite, WELCOME_SITE_TIME);
@@ -2119,7 +2119,7 @@ function drawLeaders(){
 
 
         h +=
-          `<path style="fill:${it.color}" d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>`;
+          <path style="fill:${it.color}" d="M${bx - uy * w},${by + ux * w}L${t.x},${t.y}L${bx + uy * w},${by - ux * w}Z"/>;
 
       }
     );
@@ -2257,15 +2257,15 @@ function select(it){
 
   panel.innerHTML =
 
-    `<button id="x" aria-label="Close">&times;</button>` +
+    <button id="x" aria-label="Close">&times;</button> +
 
-    `<h2>${esc(it.name)}</h2>` +
+    <h2>${esc(it.name)}</h2> +
 
     (
 
       d.HIST_NAMES
 
-        ? `<p><b>Also known as:</b> ${esc(d.HIST_NAMES)}</p>`
+        ? <p><b>Also known as:</b> ${esc(d.HIST_NAMES)}</p>
 
         : ""
 
@@ -2275,13 +2275,13 @@ function select(it){
 
       d.ADDRESS
 
-        ? `<p><b>Address:</b> ${esc(d.ADDRESS)}</p>`
+        ? <p><b>Address:</b> ${esc(d.ADDRESS)}</p>
 
         : ""
 
     ) +
 
-    `<p>${esc(d.DETAILS || "")}</p>` +
+    <p>${esc(d.DETAILS || "")}</p> +
 
     (
 
@@ -2296,7 +2296,7 @@ function select(it){
 
             .map(
               k =>
-                `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`
+                <button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>
             )
             .join("")
 
@@ -2364,7 +2364,7 @@ function select(it){
 
         "afterend",
 
-        `<p><b>${when}</b></p>`
+        <p><b>${when}</b></p>
 
       );
 
@@ -2401,7 +2401,7 @@ function select(it){
 
       "beforeend",
 
-      `<p><a href="${esc(m)}" target="_blank" rel="noopener">Do you have a memory or photo of this place? Share it</a></p>`
+      <p><a href="${esc(m)}" target="_blank" rel="noopener">Do you have a memory or photo of this place? Share it</a></p>
 
     );
 
@@ -2419,11 +2419,11 @@ function select(it){
 
       "beforeend",
 
-      `<p><b>Tour stop ${tourI + 1} of ${stops.length}</b></p>` +
+      <p><b>Tour stop ${tourI + 1} of ${stops.length}</b></p> +
 
-      `<button class="kid" data-t="-1" ${tourI ? "" : "disabled"}>&larr; Back</button>` +
+      <button class="kid" data-t="-1" ${tourI ? "" : "disabled"}>&larr; Back</button> +
 
-      `<button class="kid" data-t="1" ${tourI < stops.length - 1 ? "" : "disabled"}>Next: ${esc((stops[tourI + 1] || {}).name || "end of tour")} &rarr;</button>`
+      <button class="kid" data-t="1" ${tourI < stops.length - 1 ? "" : "disabled"}>Next: ${esc((stops[tourI + 1] || {}).name || "end of tour")} &rarr;</button>
 
     );
 
@@ -2726,7 +2726,7 @@ function initOverlays(){
     o
       .map(
         (x,n) =>
-          `<option value="${n}">${esc(x.name)}</option>`
+          <option value="${n}">${esc(x.name)}</option>
       )
       .join("");
 
@@ -2783,7 +2783,7 @@ $("near").onclick =
       t => {
 
         r.innerHTML =
-          `<li style="padding:10px">${t}</li>`;
+          <li style="padding:10px">${t}</li>;
 
         r.hidden =
           false;
@@ -2958,7 +2958,7 @@ $("near").onclick =
             hits
               .map(
                 (h,n) =>
-                  `<li><button data-i="${n}">${esc(h.i.name)} <small>${h.d < 0.1 ? Math.round(h.d * 5280) + " ft" : h.d.toFixed(1) + " mi"}</small></button></li>`
+                  <li><button data-i="${n}">${esc(h.i.name)} <small>${h.d < 0.1 ? Math.round(h.d * 5280) + " ft" : h.d.toFixed(1) + " mi"}</small></button></li>
               )
               .join("");
 
@@ -3061,7 +3061,7 @@ $("q").oninput =
       hits
         .map(
           (h,i) =>
-            `<li><button data-i="${i}">${esc(h.name)}</button></li>`
+            <li><button data-i="${i}">${esc(h.name)}</button></li>
         )
         .join("") ||
 
@@ -3147,7 +3147,7 @@ $("res").onclick =
 // ============================================================
 (function () {
 
-  document.head.insertAdjacentHTML("beforeend", `<style>
+  document.head.insertAdjacentHTML("beforeend", <style>
 .kmark{
   width:44px;
   height:44px;
@@ -3266,12 +3266,12 @@ $("res").onclick =
   display:block;
   color:#555
 }
-</style>`);
+</style>);
 
 
   const icon = (kind, c) => kind === "story"
-    ? `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="${c}" stroke="#fff" stroke-width="1.2"/></svg>`
-    : `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" fill="${c}"/><rect x="2" y="6" width="20" height="14" rx="3" fill="${c}" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>`;
+    ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="${c}" stroke="#fff" stroke-width="1.2"/></svg>
+    : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" fill="${c}"/><rect x="2" y="6" width="20" height="14" rx="3" fill="${c}" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>;
 
 
   const colorOf = c =>
@@ -3475,21 +3475,21 @@ $("res").onclick =
 
 
     card.innerHTML =
-      `<h2></h2>` +
-      `<small id="tw"></small>` +
-      `<p id="tt"></p>` +
-      `<p id="tn"><i></i></p>` +
-      `<small id="tc"></small>` +
+      <h2></h2> +
+      <small id="tw"></small> +
+      <p id="tt"></p> +
+      <p id="tn"><i></i></p> +
+      <small id="tc"></small> +
 
-      `<p><b>${esc(T.title)}: stop ${n + 1} of ${T.stops.length}</b></p>` +
+      <p><b>${esc(T.title)}: stop ${n + 1} of ${T.stops.length}</b></p> +
 
-      `<button class="kid" data-g="-1" ${n ? "" : "disabled"}>&larr; Back</button>` +
+      <button class="kid" data-g="-1" ${n ? "" : "disabled"}>&larr; Back</button> +
 
-      `<button class="kid" data-g="1" ${n < T.stops.length - 1 ? "" : "disabled"}>` +
-        `Next: ${esc(nxt ? (nxt.r ? nxt.r.TITLE : nxt.name) : "end of tour")} &rarr;` +
-      `</button>` +
+      <button class="kid" data-g="1" ${n < T.stops.length - 1 ? "" : "disabled"}> +
+        Next: ${esc(nxt ? (nxt.r ? nxt.r.TITLE : nxt.name) : "end of tour")} &rarr; +
+      </button> +
 
-      `<button class="kid" data-g="x">End tour</button>`;
+      <button class="kid" data-g="x">End tour</button>;
 
 
     card.querySelector("h2").textContent = name;
@@ -3513,18 +3513,18 @@ $("res").onclick =
     const card = $("tourCard");
 
     card.innerHTML =
-      `<h2>Tours</h2>` +
+      <h2>Tours</h2> +
 
       tours
         .map((t, i) =>
-          `<button class="kid" data-t="${i}">` +
-            `<b>${esc(t.title)}</b><br>` +
-            `<small>${esc(t.intro)} (${t.stops.length} stops)</small>` +
-          `</button>`
+          <button class="kid" data-t="${i}"> +
+            <b>${esc(t.title)}</b><br> +
+            <small>${esc(t.intro)} (${t.stops.length} stops)</small> +
+          </button>
         )
         .join("") +
 
-      `<button class="kid" data-g="x">Close</button>`;
+      <button class="kid" data-g="x">Close</button>;
 
     card.hidden = false;
 
@@ -3533,20 +3533,20 @@ $("res").onclick =
 
   document.body.insertAdjacentHTML(
     "beforeend",
-    `<aside id="tourCard" hidden aria-live="polite"></aside>` +
-    `<div id="klegend">` +
-      `<span>${icon("spot", "#333333")} Photo spot</span>` +
-      `<span>${icon("story", "#D55E00")} Story</span>` +
-    `</div>`
+    <aside id="tourCard" hidden aria-live="polite"></aside> +
+    <div id="klegend"> +
+      <span>${icon("spot", "#333333")} Photo spot</span> +
+      <span>${icon("story", "#D55E00")} Story</span> +
+    </div>
   );
 
 
   $("tour").insertAdjacentHTML(
     "afterend",
-    `<button id="tours" type="button" hidden>Tours</button>` +
-    `<button id="stories" type="button" aria-pressed="false">` +
-      `Show All Stories and Spots` +
-    `</button>`
+    <button id="tours" type="button" hidden>Tours</button> +
+    <button id="stories" type="button" aria-pressed="false"> +
+      Show All Stories and Spots +
+    </button>
   );
 
 
@@ -3781,7 +3781,7 @@ $("res").onclick =
     document.createElement("style");
 
 
-  enhancementStyle.textContent = `
+  enhancementStyle.textContent = 
 
     #panel img,
     #spotCard img,
@@ -3826,7 +3826,7 @@ $("res").onclick =
       }
     }
 
-  `;
+  ;
 
   document.head.appendChild(
     enhancementStyle
@@ -3839,7 +3839,7 @@ $("res").onclick =
 
   document.body.insertAdjacentHTML(
     "beforeend",
-    `
+    
       <div id="imgView"
            hidden
            role="dialog"
@@ -3854,7 +3854,7 @@ $("res").onclick =
         </button>
 
       </div>
-    `
+    
   );
 
 
