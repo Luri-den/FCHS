@@ -222,7 +222,14 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
 <script>
+const $ = id => document.getElementById(id);
 
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+  "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+}[c]));
+
+const key = s => String(s || "").trim().toLowerCase();
+  
 /* ============================================================
    PASSPORT & ACHIEVEMENTS SYSTEM
    ============================================================ */
@@ -487,13 +494,7 @@ const SITE = {
   }
 };
 
-const $ = id => document.getElementById(id);
 
-const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
-  "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
-}[c]));
-
-const key = s => String(s || "").trim().toLowerCase();
 
 /* ============================================================
    MAP
