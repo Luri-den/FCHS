@@ -3137,135 +3137,633 @@ $("res").onclick =
   });
 })();
 
+
 // ============================================================
 // PHOTO SPOTS (camera), STORIES (sparkle) AND TOURS
-// spots.csv: KIND = spot | story (blank = spot). LAT/LONG may be blank for tour-only stories.
-// tours.csv + tourstops.csv build the tours; ITEM_ID may name a place, child marker, spot or story.
+// spots.csv: KIND = spot | story (blank = spot).
+// LAT/LONG may be blank for tour-only stories.
+// tours.csv + tourstops.csv build the tours.
+// ITEM_ID may name a place, child marker, spot or story.
 // ============================================================
 (function () {
+
   document.head.insertAdjacentHTML("beforeend", `<style>
-.kmark{width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.kmark svg{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff)}
-.kmark.story svg{animation:ktw 2.4s ease-in-out infinite}
-@keyframes ktw{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.7}}
-@media(prefers-reduced-motion:reduce){.kmark.story svg{animation:none}}
-.tring{width:64px;height:64px;border-radius:50%;border:5px solid #D55E00;box-shadow:0 0 0 3px #fff,0 0 14px #000a;pointer-events:none;animation:kring 1.6s ease-out infinite}
-@keyframes kring{0%{transform:scale(.8)}70%{transform:scale(1.15)}100%{transform:scale(.8)}}
-@media(prefers-reduced-motion:reduce){.tring{animation:none}}
-#klegend{position:absolute;left:8px;bottom:42px;z-index:4;background:#fffe;padding:4px 8px;border-radius:6px;font-size:12px;display:flex;gap:12px}
-#klegend span{display:flex;align-items:center;gap:4px}
-#tourCard{position:fixed;left:0;right:0;bottom:0;z-index:7;max-height:48vh;overflow:auto;background:#fff;border-top:6px solid #D55E00;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-sizing:border-box}
-#tourCard[hidden]{display:none}#tourCard img{max-height:150px;max-width:100%;border-radius:8px;display:block;margin-bottom:6px}
-#tourCard h2{margin:4px 0}#tourCard small{display:block;color:#555}
+.kmark{
+  width:44px;
+  height:44px;
+  border:0;
+  background:none;
+  padding:0;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center
+}
+
+.kmark svg{
+  filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff)
+}
+
+.kmark.story svg{
+  animation:ktw 2.4s ease-in-out infinite
+}
+
+@keyframes ktw{
+  0%,100%{
+    transform:scale(1);
+    opacity:1
+  }
+  50%{
+    transform:scale(1.25);
+    opacity:.7
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .kmark.story svg{
+    animation:none
+  }
+}
+
+.tring{
+  width:64px;
+  height:64px;
+  border-radius:50%;
+  border:5px solid #D55E00;
+  box-shadow:0 0 0 3px #fff,0 0 14px #000a;
+  pointer-events:none;
+  animation:kring 1.6s ease-out infinite
+}
+
+@keyframes kring{
+  0%{
+    transform:scale(.8)
+  }
+  70%{
+    transform:scale(1.15)
+  }
+  100%{
+    transform:scale(.8)
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .tring{
+    animation:none
+  }
+}
+
+#klegend{
+  position:absolute;
+  left:8px;
+  bottom:42px;
+  z-index:4;
+  background:#fffe;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:12px;
+  display:flex;
+  gap:12px
+}
+
+#klegend span{
+  display:flex;
+  align-items:center;
+  gap:4px
+}
+
+#tourCard{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:7;
+  max-height:48vh;
+  overflow:auto;
+  background:#fff;
+  border-top:6px solid #D55E00;
+  padding:12px 14px calc(14px + env(safe-area-inset-bottom));
+  box-sizing:border-box
+}
+
+#tourCard[hidden]{
+  display:none
+}
+
+#tourCard img{
+  max-height:150px;
+  max-width:100%;
+  border-radius:8px;
+  display:block;
+  margin-bottom:6px
+}
+
+#tourCard h2{
+  margin:4px 0
+}
+
+#tourCard small{
+  display:block;
+  color:#555
+}
 </style>`);
+
 
   const icon = (kind, c) => kind === "story"
     ? `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="${c}" stroke="#fff" stroke-width="1.2"/></svg>`
     : `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" fill="${c}"/><rect x="2" y="6" width="20" height="14" rx="3" fill="${c}" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>`;
-  const colorOf = c => SITE.colors[String(c || "").trim().toUpperCase()] || SITE.colors.default;
 
-  let items = [], showAll = false, tours = [], T = null, ti = 0, ring = null;
+
+  const colorOf = c =>
+    SITE.colors[String(c || "").trim().toUpperCase()] ||
+    SITE.colors.default;
+
+
+  let items = [];
+  let showAll = false;
+  let tours = [];
+  let T = null;
+  let ti = 0;
+  let ring = null;
+
   const box = $("spotBox");
 
-  // spot box needs its own close handling when there is no ?spot= in the address
+
+  // Spot box needs its own close handling when there is no
+  // ?spot= in the address.
   if (!new URLSearchParams(location.search).has("spot")) {
-    $("sp-x").onclick = $("sp-go").onclick = () => { box.hidden = true; };
-    box.onclick = e => { if (e.target === box) box.hidden = true; };
+
+    $("sp-x").onclick =
+      $("sp-go").onclick =
+        () => {
+          box.hidden = true;
+        };
+
+    box.onclick = e => {
+      if (e.target === box) {
+        box.hidden = true;
+      }
+    };
   }
-  document.addEventListener("keydown", e => { if (e.key === "Escape") box.hidden = true; });
+
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      box.hidden = true;
+    }
+  });
+
 
   function showSpot(it) {
+
     const r = it.r;
+
     $("sp-img").hidden = !r.PHOTO;
-    if (r.PHOTO) $("sp-img").src = r.PHOTO;
+
+    if (r.PHOTO) {
+      $("sp-img").src = r.PHOTO;
+    }
+
     $("sp-title").textContent = r.TITLE || "";
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
-    $("sp-credit").textContent = [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""].filter(Boolean).join(" \u00b7 ");
+
+    $("sp-credit").textContent =
+      [
+        r.CREDIT ? "Photo: " + r.CREDIT : "",
+        r.SOURCE ? "Source: " + r.SOURCE : ""
+      ]
+      .filter(Boolean)
+      .join(" · ");
+
     box.hidden = false;
   }
 
-  const vis = () => { const z = map.getZoom(); items.forEach(i => { if (i.el) i.el.style.display = (showAll || z >= 16) ? "" : "none"; }); };
 
-  const byId = id => { const k = key(id); return places.concat(kids).find(p => key(p.id) === k) || items.find(i => key(i.id) === k); };
+  const vis = () => {
 
-  function clearHi() { if (ring) { ring.remove(); ring = null; } }
+    const z = map.getZoom();
 
-  function go(n) {
-    ti = n; clearHi();
-    const st = T.stops[n], it = byId(st.ITEM_ID), card = $("tourCard");
-    let name = "Missing item: " + st.ITEM_ID, when = "", text = "", photo = null, credit = "", ll = null, img = null;
-    if (it && it.r) {                                   // spot or story
-      const r = it.r; name = r.TITLE; when = r.YEAR || ""; text = r.DETAILS || ""; ll = it.ll;
-      if (r.PHOTO) { img = new Image(); img.alt = ""; img.src = r.PHOTO; img.onerror = () => img.remove(); }
-      credit = [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""].filter(Boolean).join(" \u00b7 ");
-    } else if (it) {                                    // place or child marker
-      name = it.name; text = it.d.DETAILS || ""; ll = it.ll; img = thumb(it.id);
-    }
-    if (ll) {
-      focus = (it && it.parent) || null; update();      // show a child's siblings, hide the rest
-      const d = document.createElement("div"); d.className = "tring";
-      ring = new maplibregl.Marker({ element: d }).setLngLat(ll).addTo(map);
-      map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 17) });
-    }
-    const nxt = T.stops[n + 1] && byId(T.stops[n + 1].ITEM_ID);
-    card.innerHTML = `<h2></h2><small id="tw"></small><p id="tt"></p><p id="tn"><i></i></p><small id="tc"></small>` +
-      `<p><b>${esc(T.title)}: stop ${n + 1} of ${T.stops.length}</b></p>` +
-      `<button class="kid" data-g="-1" ${n ? "" : "disabled"}>&larr; Back</button>` +
-      `<button class="kid" data-g="1" ${n < T.stops.length - 1 ? "" : "disabled"}>Next: ${esc(nxt ? (nxt.r ? nxt.r.TITLE : nxt.name) : "end of tour")} &rarr;</button>` +
-      `<button class="kid" data-g="x">End tour</button>`;
-    card.querySelector("h2").textContent = name; $("tw").textContent = when; $("tt").textContent = text;
-    card.querySelector("#tn i").textContent = st.NOTE || ""; $("tc").textContent = credit;
-    if (img) card.insertBefore(img, card.firstChild);
-    card.hidden = false;
-  }
+    items.forEach(i => {
 
-  function listTours() {
-    const card = $("tourCard");
-    card.innerHTML = `<h2>Tours</h2>` + tours.map((t, i) => `<button class="kid" data-t="${i}"><b>${esc(t.title)}</b><br><small>${esc(t.intro)} (${t.stops.length} stops)</small></button>`).join("") + `<button class="kid" data-g="x">Close</button>`;
-    card.hidden = false;
-  }
+      if (i.el) {
 
-  document.body.insertAdjacentHTML("beforeend", `<aside id="tourCard" hidden aria-live="polite"></aside><div id="klegend"><span>${icon("spot", "#333333")} Photo spot</span><span>${icon("story", "#D55E00")} Story</span></div>`);
-  $("tour").insertAdjacentHTML("afterend", `<button id="tours" type="button" hidden>Tours</button><button id="stories" type="button" aria-pressed="false">Show All Stories and Spots</button>`);
-  $("tours").onclick = listTours;
-  $("stories").onclick = () => { showAll = !showAll; $("stories").setAttribute("aria-pressed", showAll); $("stories").textContent = showAll ? "Hide Stories / Spots" : "Show All Stories and Spots"; vis(); };
-  $("tourCard").onclick = e => {
-    const t = e.target.closest("[data-t]"), g = e.target.closest("[data-g]");
-    if (t) { T = tours[+t.dataset.t]; go(0); }
-    else if (g && !g.disabled) {
-      if (g.dataset.g === "x") { $("tourCard").hidden = true; clearHi(); T = null; focus = null; update(); }
-      else go(ti + +g.dataset.g);
-    }
+        i.el.style.display =
+          (showAll || z >= 16)
+            ? ""
+            : "none";
+
+      }
+
+    });
+
   };
 
+
+  const byId = id => {
+
+    const k = key(id);
+
+    return places
+      .concat(kids)
+      .find(p => key(p.id) === k)
+      ||
+      items.find(i => key(i.id) === k);
+
+  };
+
+
+  function clearHi() {
+
+    if (ring) {
+      ring.remove();
+      ring = null;
+    }
+
+  }
+
+
+  function go(n) {
+
+    ti = n;
+
+    clearHi();
+
+    const st = T.stops[n];
+    const it = byId(st.ITEM_ID);
+    const card = $("tourCard");
+
+    let name = "Missing item: " + st.ITEM_ID;
+    let when = "";
+    let text = "";
+    let photo = null;
+    let credit = "";
+    let ll = null;
+    let img = null;
+
+
+    if (it && it.r) {
+
+      // Spot or story
+      const r = it.r;
+
+      name = r.TITLE;
+      when = r.YEAR || "";
+      text = r.DETAILS || "";
+      ll = it.ll;
+
+      if (r.PHOTO) {
+
+        img = new Image();
+
+        img.alt = "";
+        img.src = r.PHOTO;
+
+        img.onerror = () => {
+          img.remove();
+        };
+
+      }
+
+      credit =
+        [
+          r.CREDIT ? "Photo: " + r.CREDIT : "",
+          r.SOURCE ? "Source: " + r.SOURCE : ""
+        ]
+        .filter(Boolean)
+        .join(" · ");
+
+    } else if (it) {
+
+      // Place or child marker
+      name = it.name;
+      text = it.d.DETAILS || "";
+      ll = it.ll;
+      img = thumb(it.id);
+
+    }
+
+
+    if (ll) {
+
+      focus = (it && it.parent) || null;
+
+      update();
+
+      const d = document.createElement("div");
+
+      d.className = "tring";
+
+      ring =
+        new maplibregl.Marker({
+          element: d
+        })
+        .setLngLat(ll)
+        .addTo(map);
+
+      map.flyTo({
+        center: ll,
+        zoom: Math.max(map.getZoom(), 17)
+      });
+
+    }
+
+
+    const nxt =
+      T.stops[n + 1] &&
+      byId(T.stops[n + 1].ITEM_ID);
+
+
+    card.innerHTML =
+      `<h2></h2>` +
+      `<small id="tw"></small>` +
+      `<p id="tt"></p>` +
+      `<p id="tn"><i></i></p>` +
+      `<small id="tc"></small>` +
+
+      `<p><b>${esc(T.title)}: stop ${n + 1} of ${T.stops.length}</b></p>` +
+
+      `<button class="kid" data-g="-1" ${n ? "" : "disabled"}>&larr; Back</button>` +
+
+      `<button class="kid" data-g="1" ${n < T.stops.length - 1 ? "" : "disabled"}>` +
+        `Next: ${esc(nxt ? (nxt.r ? nxt.r.TITLE : nxt.name) : "end of tour")} &rarr;` +
+      `</button>` +
+
+      `<button class="kid" data-g="x">End tour</button>`;
+
+
+    card.querySelector("h2").textContent = name;
+    $("tw").textContent = when;
+    $("tt").textContent = text;
+    card.querySelector("#tn i").textContent = st.NOTE || "";
+    $("tc").textContent = credit;
+
+
+    if (img) {
+      card.insertBefore(img, card.firstChild);
+    }
+
+    card.hidden = false;
+
+  }
+
+
+  function listTours() {
+
+    const card = $("tourCard");
+
+    card.innerHTML =
+      `<h2>Tours</h2>` +
+
+      tours
+        .map((t, i) =>
+          `<button class="kid" data-t="${i}">` +
+            `<b>${esc(t.title)}</b><br>` +
+            `<small>${esc(t.intro)} (${t.stops.length} stops)</small>` +
+          `</button>`
+        )
+        .join("") +
+
+      `<button class="kid" data-g="x">Close</button>`;
+
+    card.hidden = false;
+
+  }
+
+
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<aside id="tourCard" hidden aria-live="polite"></aside>` +
+    `<div id="klegend">` +
+      `<span>${icon("spot", "#333333")} Photo spot</span>` +
+      `<span>${icon("story", "#D55E00")} Story</span>` +
+    `</div>`
+  );
+
+
+  $("tour").insertAdjacentHTML(
+    "afterend",
+    `<button id="tours" type="button" hidden>Tours</button>` +
+    `<button id="stories" type="button" aria-pressed="false">` +
+      `Show All Stories and Spots` +
+    `</button>`
+  );
+
+
+  $("tours").onclick = listTours;
+
+
+  $("stories").onclick = () => {
+
+    showAll = !showAll;
+
+    $("stories").setAttribute(
+      "aria-pressed",
+      showAll
+    );
+
+    $("stories").textContent =
+      showAll
+        ? "Hide Stories / Spots"
+        : "Show All Stories and Spots";
+
+    vis();
+
+  };
+
+
+  $("tourCard").onclick = e => {
+
+    const t = e.target.closest("[data-t]");
+    const g = e.target.closest("[data-g]");
+
+
+    if (t) {
+
+      T = tours[+t.dataset.t];
+
+      go(0);
+
+    } else if (g && !g.disabled) {
+
+      if (g.dataset.g === "x") {
+
+        $("tourCard").hidden = true;
+
+        clearHi();
+
+        T = null;
+
+        focus = null;
+
+        update();
+
+      } else {
+
+        go(
+          ti + +g.dataset.g
+        );
+
+      }
+
+    }
+
+  };
+
+
   map.once("load", async () => {
-    const [S, TR, TS] = await Promise.all([load("spots.csv"), load("tours.csv"), load("tourstops.csv")]);
+
+    const [S, TR, TS] =
+      await Promise.all([
+        load("spots.csv"),
+        load("tours.csv"),
+        load("tourstops.csv")
+      ]);
+
+
     S.forEach(r => {
-      const id = (r.SPOT_ID || "").trim(); if (!id) return;
-      const kind = key(r.KIND) === "story" ? "story" : "spot";
-      const ll = [parseFloat(r.LONG), parseFloat(r.LAT)], ok = !ll.some(isNaN);
-      const it = { id, r, kind, ll: ok ? ll : null };
+
+      const id =
+        (r.SPOT_ID || "").trim();
+
+      if (!id) return;
+
+
+      const kind =
+        key(r.KIND) === "story"
+          ? "story"
+          : "spot";
+
+
+      const ll = [
+        parseFloat(r.LONG),
+        parseFloat(r.LAT)
+      ];
+
+      const ok =
+        !ll.some(isNaN);
+
+
+      const it = {
+        id,
+        r,
+        kind,
+        ll: ok ? ll : null
+      };
+
+
       if (ok) {
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "kmark " + kind;
-        b.setAttribute("aria-label", (kind === "story" ? "Story: " : "Photo spot: ") + (r.TITLE || id));
-        b.innerHTML = icon(kind, kind === "story" ? "#D55E00" : "#333333");
-        b.onclick = e => { e.stopPropagation(); showSpot(it); };
-        it.el = b; it.marker = new maplibregl.Marker({ element: b }).setLngLat(ll).addTo(map);
-      } else if ((r.LAT || r.LONG || "").trim()) console.warn("Spot " + id + " needs both LAT and LONG (or neither)");
+
+        const b =
+          document.createElement("button");
+
+        b.type = "button";
+
+        b.className =
+          "kmark " + kind;
+
+        b.setAttribute(
+          "aria-label",
+          (kind === "story"
+            ? "Story: "
+            : "Photo spot: ") +
+          (r.TITLE || id)
+        );
+
+        b.innerHTML =
+          icon(
+            kind,
+            kind === "story"
+              ? "#D55E00"
+              : "#333333"
+          );
+
+
+        b.onclick = e => {
+
+          e.stopPropagation();
+
+          showSpot(it);
+
+        };
+
+
+        it.el = b;
+
+
+        it.marker =
+          new maplibregl.Marker({
+            element: b
+          })
+          .setLngLat(ll)
+          .addTo(map);
+
+      } else if (
+        (r.LAT || r.LONG || "").trim()
+      ) {
+
+        console.warn(
+          "Spot " +
+          id +
+          " needs both LAT and LONG (or neither)"
+        );
+
+      }
+
+
       items.push(it);
+
     });
+
+
     TR.forEach(r => {
-      const id = (r.TOUR_ID || "").trim(); if (!id) return;
-      const stops = TS.filter(x => key(x.TOUR_ID) === key(id)).sort((a, b) => parseFloat(a.STEP) - parseFloat(b.STEP));
-      if (stops.length) tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", stops });
+
+      const id =
+        (r.TOUR_ID || "").trim();
+
+      if (!id) return;
+
+
+      const stops =
+        TS
+          .filter(
+            x => key(x.TOUR_ID) === key(id)
+          )
+          .sort(
+            (a, b) =>
+              parseFloat(a.STEP) -
+              parseFloat(b.STEP)
+          );
+
+
+      if (stops.length) {
+
+        tours.push({
+          id,
+          title: r.TITLE || id,
+          intro: r.INTRO || "",
+          stops
+        });
+
+      }
+
     });
-    $("tours").hidden = !tours.length;
-    vis(); map.on("zoomend", vis);
+
+
+    $("tours").hidden =
+      !tours.length;
+
+    vis();
+
+    map.on(
+      "zoomend",
+      vis
+    );
+
   });
+
 })();
-</style>`);
+
 
 // ============================================================
 // ENHANCEMENTS
@@ -3279,9 +3777,12 @@ $("res").onclick =
   // 1. Add enhancement CSS
   // ------------------------------------------------------------
 
-  const enhancementStyle = document.createElement("style");
+  const enhancementStyle =
+    document.createElement("style");
+
 
   enhancementStyle.textContent = `
+
     #panel img,
     #spotCard img,
     #tourCard img {
@@ -3324,9 +3825,12 @@ $("res").onclick =
         animation: none;
       }
     }
+
   `;
 
-  document.head.appendChild(enhancementStyle);
+  document.head.appendChild(
+    enhancementStyle
+  );
 
 
   // ------------------------------------------------------------
@@ -3350,111 +3854,162 @@ $("res").onclick =
         </button>
 
       </div>
-    ,
+    `
   );
 
-  const view = document.getElementById("imgView");
-  const big = view.querySelector("img");
+
+  const view =
+    document.getElementById("imgView");
+
+  const big =
+    view.querySelector("img");
 
 
   const closeView = () => {
+
     view.hidden = true;
+
     big.removeAttribute("src");
+
   };
 
 
   document.addEventListener("click", e => {
 
-    const im = e.target.closest(
-      "#panel img, #spotCard img, #tourCard img"
-    );
+    const im =
+      e.target.closest(
+        "#panel img, #spotCard img, #tourCard img"
+      );
+
 
     if (!im) return;
 
-    const src = im.getAttribute("src");
+
+    const src =
+      im.getAttribute("src");
+
 
     if (!src) return;
 
-    const shown = im.currentSrc || im.src;
 
-    const larger = shown.replace(
-      "/thumbs/",
-      "/photos/"
-    );
+    const shown =
+      im.currentSrc || im.src;
+
+
+    const larger =
+      shown.replace(
+        "/thumbs/",
+        "/photos/"
+      );
+
 
     big.onerror = () => {
+
       big.onerror = null;
+
       big.src = shown;
+
     };
+
 
     big.src = larger;
 
     view.hidden = false;
+
   });
 
 
   // Clicking anywhere on the overlay closes it.
-  view.addEventListener("click", closeView);
+  view.addEventListener(
+    "click",
+    closeView
+  );
 
 
   // Escape closes the enlarged image.
-  document.addEventListener("keydown", e => {
+  document.addEventListener(
+    "keydown",
+    e => {
 
-    if (e.key === "Escape" && !view.hidden) {
-      closeView();
-      e.stopPropagation();
-    }
+      if (
+        e.key === "Escape" &&
+        !view.hidden
+      ) {
 
-  }, true);
+        closeView();
+
+        e.stopPropagation();
+
+      }
+
+    },
+    true
+  );
 
 
   // ------------------------------------------------------------
   // 3. Opening view fits every place marker on screen
   // ------------------------------------------------------------
 
-  if (!new URLSearchParams(location.search).has("spot")) {
+  if (
+    !new URLSearchParams(location.search)
+      .has("spot")
+  ) {
 
     let tries = 0;
 
+
     const t = setInterval(() => {
 
-      if (!places.length && ++tries <= 50) {
+      if (
+        !places.length &&
+        ++tries <= 50
+      ) {
+
         return;
+
       }
 
+
       clearInterval(t);
+
 
       if (!places.length) {
         return;
       }
 
-      const b = new maplibregl.LngLatBounds();
+
+      const b =
+        new maplibregl.LngLatBounds();
+
 
       places.forEach(p => {
         b.extend(p.ll);
       });
 
 
-      const cam = map.cameraForBounds(
-        b,
-        {
-          padding: {
-            top: 160,
-            bottom: 60,
-            left: 40,
-            right: 40
-          },
-          maxZoom: 15
-        }
-      );
+      const cam =
+        map.cameraForBounds(
+          b,
+          {
+            padding: {
+              top: 160,
+              bottom: 60,
+              left: 40,
+              right: 40
+            },
+            maxZoom: 15
+          }
+        );
+
 
       if (!cam) {
         return;
       }
 
 
-      // "Explore the map" and other return trips use
-      // this view too.
+      // "Explore the map" and other return trips
+      // use this view too.
 
       SITE.center = [
         cam.center.lng,
@@ -3475,7 +4030,3 @@ $("res").onclick =
 
 })();
 
-</script>
-
-</body>
-</html>
