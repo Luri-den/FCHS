@@ -60,18 +60,18 @@ const SITE = {
   childZoom: 16,   // at this zoom and closer, parents hide and their children show
   colors: { IND:"#AF350A", CIV:"#E2E1E0", TRANS:"#91AF45", COMM:"#E47303", RES:"#BDD76B", default:"#E47303" }, // Category colors
   yearMin: 1850, yearMax: 2030,   // slider range; the far-right position (yearMax) means "All"
-overlays: [
+[
     {
-        name: "1901 Map",
-        url: "1901-map.jpg",
+        name: "1901 Sanborn Map",
+        url: "1901-connersville-map.png",
         coords: [
-            [-85.14486088, 39.65638673], // top-left
-            [-85.13038157, 39.64466318], // top-right
-            [-84.94800887, 39.50193894], // bottom-right
-            [-85.13715813, 39.64919236]  // bottom-left
+            [-85.148119, 39.658742], // top-left
+            [-85.123512, 39.658742], // top-right
+            [-85.123512, 39.630095], // bottom-right
+            [-85.148119, 39.630095]  // bottom-left
         ]
     }
-],
+]
   memoryUrl: "mailto:connersville@example.org",                  // "mailto:you@example.org" or a form link; blank hides the Share link
   files: { locations: "locations.csv", children: "childmarkers.csv", boundary: "connersville.geojson" }
 };
