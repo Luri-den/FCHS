@@ -1476,7 +1476,7 @@ const view    = document.getElementById("imgView");
 const canvas  = document.getElementById("depthCanvas");
 const caption = view.querySelector(".caption");
 
-const STRENGTH = 0.05;   // how far near things slide against far things (0.02 subtle, 0.08 strong)
+const STRENGTH = 0.03;   // how far near things slide against far things (0.02 subtle, 0.08 strong)
 const TILT_DEG = 20;     // degrees of phone tilt that gives full effect
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -1568,9 +1568,9 @@ function fakeDepth(){
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const x = c.getContext("2d");
-  const g = x.createRadialGradient(128, 128, 10, 128, 128, 180);
-  g.addColorStop(0, "#fff");
-  g.addColorStop(1, "#000");
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, "#000");   // top = far
+  g.addColorStop(1, "#fff");   // bottom = near
   x.fillStyle = g;
   x.fillRect(0, 0, 256, 256);
   return c;
