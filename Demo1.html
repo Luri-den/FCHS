@@ -349,6 +349,13 @@ html,body{
 }
 
 
+#spotBox{position:fixed;inset:0;z-index:9000;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
+#spotBox[hidden]{display:none}
+#spotCard{position:relative;background:#fff;border:6px solid #D55E00;border-radius:18px;max-width:560px;max-height:92vh;overflow:auto;padding:14px}
+#spotCard img{width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee}
+#spotCard h2{margin:10px 0 4px}#sp-x{position:absolute;right:8px;top:2px;font-size:30px;border:0;background:none}
+#sp-go{display:block;margin-top:12px;padding:10px 14px;border:0;border-radius:6px;background:#D55E00;color:#fff;font-size:16px}
+.spotpin{width:22px;height:22px;border-radius:50%;background:#D55E00;border:4px solid #fff;box-shadow:0 0 0 4px #D55E00,0 0 12px #000a}
 #welcomeSite{position:absolute;inset:0;pointer-events:none}
 #wsLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 #wsLine path{stroke:#fff;stroke-width:2}
@@ -404,6 +411,15 @@ html,body{
 
 </div>
 
+
+<div id="spotBox" hidden role="dialog" aria-modal="true" aria-labelledby="sp-title">
+  <div id="spotCard">
+    <button id="sp-x" type="button" aria-label="Close">&times;</button>
+    <img id="sp-img" alt="" onerror="this.hidden=true">
+    <h2 id="sp-title"></h2><p id="sp-when"><b></b></p><p id="sp-text"></p><small id="sp-credit"></small>
+    <button id="sp-go" type="button">Explore the map</button>
+  </div>
+</div>
 
 <div id="bar">
 
@@ -1083,7 +1099,7 @@ const map =
    THE MAP OBJECT EXISTS.
 */
 
-startWelcome();
+if (new URLSearchParams(location.search).has("spot")) { const w = document.getElementById("welcomeOverlay"); if (w) w.remove(); } else { startWelcome(); }
 
 
 
@@ -3088,6 +3104,38 @@ $("res").onclick =
   };
 
 
+
+// ============================================================
+// QR "WHAT USED TO BE HERE?" SPOTS
+// page.html?spot=ID opens the map at that spot with a lightbox
+// (photo + description). The content comes from spots.csv, so the
+// printed QR code never has to change when the text does.
+// ============================================================
+(function () {
+  const id = new URLSearchParams(location.search).get("spot");
+  if (!id) return;
+  const box = $("spotBox"), close = () => { box.hidden = true; };
+  $("sp-x").onclick = close; $("sp-go").onclick = close;
+  box.onclick = e => { if (e.target === box) close(); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+  map.once("load", async () => {
+    const r = (await load("spots.csv")).find(x => key(x.SPOT_ID) === key(id));
+    if (!r) { console.warn("No spot called " + id + " in spots.csv"); return; }
+    const ll = [parseFloat(r.LONG), parseFloat(r.LAT)];
+    if (ll.some(isNaN)) { console.warn("Spot " + id + " has bad coordinates"); return; }
+    map.jumpTo({ center: ll, zoom: 18 });
+    const pin = document.createElement("div");
+    pin.className = "spotpin";
+    new maplibregl.Marker({ element: pin }).setLngLat(ll).addTo(map);
+    $("sp-img").hidden = !r.PHOTO;
+    if (r.PHOTO) $("sp-img").src = r.PHOTO;
+    $("sp-title").textContent = r.TITLE || "What used to be here?";
+    $("sp-when").textContent = r.YEAR || "";
+    $("sp-text").textContent = r.DETAILS || "";
+    $("sp-credit").textContent = r.CREDIT ? "Photo: " + r.CREDIT : "";
+    box.hidden = false;
+  });
+})();
 </script>
 
 </body>
