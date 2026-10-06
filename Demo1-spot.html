@@ -3114,8 +3114,19 @@ $("res").onclick =
 (function () {
   const id = new URLSearchParams(location.search).get("spot");
   if (!id) return;
+  let spotPin = null;
   const box = $("spotBox"), close = () => { box.hidden = true; };
-  $("sp-x").onclick = close; $("sp-go").onclick = close;
+  const clearPin = () => { if (spotPin) { spotPin.remove(); spotPin = null; } };
+  $("sp-x").onclick = close;
+  // "Explore the map": drop the spot pin, clear ?spot= from the address, and fly out to the normal view (no reload needed)
+  $("sp-go").onclick = () => {
+    close();
+    clearPin();
+    history.replaceState(null, "", location.pathname);
+    map.flyTo({ center: SITE.center, zoom: SITE.zoom });
+  };
+  // if they zoom out by hand, the spot pin goes away too
+  map.on("zoomend", () => { if (spotPin && map.getZoom() < 15.5) clearPin(); });
   box.onclick = e => { if (e.target === box) close(); };
   document.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
   map.once("load", async () => {
@@ -3126,7 +3137,7 @@ $("res").onclick =
     map.jumpTo({ center: ll, zoom: 18 });
     const pin = document.createElement("div");
     pin.className = "spotpin";
-    new maplibregl.Marker({ element: pin }).setLngLat(ll).addTo(map);
+    spotPin = new maplibregl.Marker({ element: pin }).setLngLat(ll).addTo(map);
     $("sp-img").hidden = !r.PHOTO;
     if (r.PHOTO) $("sp-img").src = r.PHOTO;
     $("sp-title").textContent = r.TITLE || "What used to be here?";
