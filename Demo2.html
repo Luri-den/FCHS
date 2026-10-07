@@ -1175,7 +1175,7 @@ $("res").onclick = e => {
 
   const box = $("spotBox");
   const close = () => { box.hidden = true; };
-  const explore = () => { location.reload(); };
+  const explore = close;
 
   $("sp-x").onclick = close;
   $("sp-go").onclick = explore;
@@ -1244,7 +1244,19 @@ $("res").onclick = e => {
   let ring = null;
 
   const box = $("spotBox");
+  function setSpotUrl(id) {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (id) q.set("spot", id); else q.delete("spot");
+    const s = q.toString();
+    history.replaceState(null, "", location.pathname + (s ? "?" + s : ""));
+  } catch (e) {}
+}
 
+// Clears ?spot= when the card closes, however it was closed.
+new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
+  .observe(box, { attributes: true, attributeFilter: ["hidden"] });
+  
   if (!new URLSearchParams(location.search).has("spot")) {
     $("sp-x").onclick = $("sp-go").onclick = () => { box.hidden = true; };
     box.onclick = e => { if (e.target === box) box.hidden = true; };
@@ -1263,6 +1275,7 @@ $("res").onclick = e => {
       [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
     box.hidden = false;
+    setSpotUrl(it.id);
     
     // Unlock stamp for photo spot / story
     unlockStamp(it.id);
