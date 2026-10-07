@@ -2134,7 +2134,7 @@ document.addEventListener("keydown", e => {
   const count = p => PASSPORT.tasks.filter(t => p[t.id]).length;
 
   /* ---------- CSS ---------- */
-
+<`style>
   document.head.insertAdjacentHTML("beforeend", `<style>
 #passportBtn{position:relative}
 @keyframes pNudge{
@@ -2209,19 +2209,23 @@ document.addEventListener("keydown", e => {
   const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
   const starRow = (n, newest) =>
     [1, 2, 3].map(i => `<span class="${i <= n ? "on" : "off"}${i === newest ? " new" : ""}">${STAR}</span>`).join("");
-
-  document.body.insertAdjacentHTML("beforeend", `
-<div id="pSlam" role="dialog" aria-modal="true" aria-labelledby="pRank" tabindex="-1">
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <filter id="pInk"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/></filter>
-  </svg>
-  <div class="rays"></div>
-  <canvas></canvas>
-  <div class="box"></div>
-</div>`);
+`<style>
+document.body.insertAdjacentHTML("beforeend", `
+  <div id="pSlam" role="dialog" aria-modal="true" aria-labelledby="pRank" tabindex="-1">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <filter id="pInk">
+        <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/>
+      </filter>
+    </svg>
+    <div class="rays"></div>
+    <canvas></canvas>
+    <div class="box"></div>
+  </div>
+`);
 
   document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pTasks"></div>`);
-
+  </style>
   const slam = document.getElementById("pSlam");
   const btn = $("passportBtn");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
