@@ -56,10 +56,18 @@ html,body{
   /* Do NOT let the SVG affect flex layout */
   display:block;
 }
-
-/* Far rolling hills */
-.bar-landscape .hill-back{
-  fill:#78905a;
+  
+.bar-landscape{
+  position:absolute;
+  z-index:0;
+  left:0;
+  right:0;
+  bottom:0;
+  width:100%;
+  height:90px;
+  pointer-events:none;
+  display:block;
+}
 }
 
 /* Near rolling hills */
@@ -87,14 +95,20 @@ html,body{
 }
 
 .bar-top{
+  position:relative;
+  z-index:10;
+
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-start;
   align-items:center;
+
+  padding-left:0;
 }
 
 #bar h1{
   font-size:17px;
   margin:0;
+  padding-left:42px;
 }
 
 /* ============================================================
@@ -113,9 +127,30 @@ html,body{
   box-shadow:0 1px 3px rgba(0,0,0,0.2);
 }
 
-#passportBtn:hover{
-  background:#f5f1df;
+#passportBtn{
+  position:absolute;
+  top:calc(6px + env(safe-area-inset-top));
+  left:10px;
+
+  background:transparent;
+  color:#fff;
+
+  border:0;
+  border-radius:0;
+
+  padding:2px;
+  margin:0;
+
+  font-weight:bold;
+  font-size:13px;
+
+  cursor:pointer;
+
+  box-shadow:none;
+
+  z-index:20;
 }
+
 
 /* ============================================================
    SEARCH
