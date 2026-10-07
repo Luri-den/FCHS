@@ -8,15 +8,7 @@
 
 <style>
 
-html,body{
-  margin:0;
-  height:100%;
-  font-family:Arial,sans-serif
-}
-
-/* ============================================================
-   HEADER / LANDSCAPE
-   ============================================================ */
+html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 
 #bar{
   position:absolute;
@@ -24,329 +16,49 @@ html,body{
   top:0;
   left:0;
   right:0;
-
-  background:#687f4d;
+  background: #176B78 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 200' preserveAspectRatio='none'%3E%3Cpath d='M0,200 L0,120 Q250,90 500,110 T1000,100 L1000,200 Z' fill='%23176B78'/%3E%3Cpath d='M0,200 L0,150 Q300,120 600,140 T1000,130 L1000,200 Z' fill='%23405C48'/%3E%3Cpath d='M120,45 Q320,25 520,40 M620,30 Q800,15 920,35' stroke='%23607A5B' stroke-width='2' fill='none' stroke-linecap='round' opacity='0.7'/%3E%3C/svg%3E") no-repeat bottom center;
+  background-size: 100% 100%;
   color:#fff;
-
-  padding:calc(6px + env(safe-area-inset-top)) 10px 22px;
-
+  padding:calc(6px + env(safe-area-inset-top)) 10px 8px;
   display:flex;
   flex-direction:column;
   gap:6px;
-
-  overflow:hidden;
 }
 
-/* ============================================================
-   LANDSCAPE ARTWORK
-   ============================================================ */
-
-.bar-landscape{
-  position:absolute;
-  z-index:0;
-  left:0;
-  right:0;
-  bottom:0;
-
-  width:100%;
-  height:90px;
-
-  display:block;
-  pointer-events:none;
-}
-
-/* Distant hills */
-.bar-landscape .hill-back{
-  fill:#78905a;
-}
-
-/* Near hills */
-.bar-landscape .hill-front{
-  fill:#587043;
-}
-
-/* Water */
-.bar-landscape .bar-water{
-  fill:#397d8c;
-}
-
-/* ============================================================
-   HEADER CONTENT
-   ============================================================ */
-
-.bar-top{
-  position:relative;
-  z-index:10;
-
-  display:flex;
-  justify-content:flex-start;
-  align-items:center;
-
-  padding-left:42px;
-}
-
-#bar h1{
-  position:relative;
-  z-index:10;
-
-  font-size:17px;
-  margin:0;
-}
-
-/* ============================================================
-   HISTORY PASSPORT / ACHIEVEMENTS
-   ============================================================ */
-
-#passportBtn{
-  position:absolute;
-  z-index:20;
-
-  top:calc(6px + env(safe-area-inset-top));
-  left:10px;
-
-  margin:0;
-  padding:2px;
-
-  background:transparent;
-  color:#fff;
-
-  border:0;
-  border-radius:0;
-
-  font-weight:bold;
-  font-size:13px;
-
-  cursor:pointer;
-
-  box-shadow:none;
-}
-
-#passportBtn:hover,
-#passportBtn:focus{
-  background:transparent;
-  color:#fff;
-  box-shadow:none;
-}
-
-/* ============================================================
-   SEARCH
-   ============================================================ */
-
-#q{
-  position:relative;
-  z-index:10;
-
-  width:100%;
-  box-sizing:border-box;
-
-  padding:8px;
-
-  font-size:16px;
-
-  border:0;
-  border-radius:4px;
-}
-
-/* ============================================================
-   SEARCH RESULTS
-   ============================================================ */
-
-#res{
-  position:relative;
-  z-index:10;
-
-  list-style:none;
-  margin:2px 0 0;
-  padding:0;
-
-  background:#fff;
-  color:#000;
-
-  border-radius:4px;
-
-  max-height:40vh;
-  overflow:auto;
-}
-
-#res button{
-  width:100%;
-  text-align:left;
-  padding:10px;
-
-  border:0;
-  background:none;
-
-  font-size:15px;
-
-  border-bottom:1px solid #eee;
-}
-
-/* ============================================================
-   MAP
-   ============================================================ */
-
-#map{
-  position:absolute;
-  inset:0
-}
-
-/* ============================================================
-   LEADER LINES
-   ============================================================ */
-
-#leaders{
-  position:absolute;
-  left:0;
-  top:0;
-  width:100%;
-  height:100%;
-  pointer-events:none;
-  overflow:visible
-}
-
-#leaders path{
-  fill:#E47303;
-  stroke:#fff;
-  stroke-width:1.5
-}
-
-/* ============================================================
-   MAP PINS
-   ============================================================ */
-
-.pin{
-  width:44px;
-  height:44px;
-  border-radius:50%;
-  border:3px solid var(--c,#E47303);
-  background:#E47303;
-  box-shadow:0 0 0 2px #fff,0 1px 4px #0007;
-  padding:0;
-  overflow:hidden;
-  cursor:pointer
-}
-
-.pin img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block
-}
-
-.pin.parent{
-  width:58px;
-  height:58px;
-  border:4px solid var(--c,#E47303);
-  box-shadow:0 0 0 2px #fff,0 1px 5px #0008
-}
-
-.pin:focus-visible{
-  outline:3px solid #ff9800
-}
-
-.pin.sel{
-  border-color:#ff9800
-}
-
-.pin.gone{
-  border-style:dashed
-}
-
-.pin.gone img{
-  filter:grayscale(1)
-}
-
-/* ============================================================
-   MAP TOOLS
-   ============================================================ */
-
-#tools{
-  position:relative;
-  z-index:10;
-
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-
-  font-size:13px;
-  align-items:center
-}
-
-#tools button{
-  padding:6px 10px;
-
-  border:0;
-  border-radius:4px;
-
-  background:#fff;
-  color:#000;
-
-  cursor:pointer
-}
-
-#tools label{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex:1 1 210px
-}
-
-#tools input[type=range]{
-  flex:1
-}
-
-/* ============================================================
-   INFORMATION PANEL
-   ============================================================ */
-
-#panel{
-  position:absolute;
-  z-index:6;
-
-  left:0;
-  right:0;
-  bottom:0;
-
-  max-height:55vh;
-  overflow:auto;
-
-  background:#fff;
-
-  padding:12px 14px calc(14px + env(safe-area-inset-bottom));
-
-  box-shadow:0 -2px 8px #0005;
-
-  box-sizing:border-box
-}
-
-#panel img{
-  width:100%;
-  max-height:240px;
-  object-fit:cover;
-  border-radius:6px;
-  cursor:zoom-in
-}
-
-#panel h2{
-  margin:8px 0 4px;
-  font-size:19px
-}
-
-#panel h3{
-  margin:12px 0 4px;
-  font-size:15px
-}
-
-#x{
-  position:absolute;
-  right:8px;
-  top:6px;
-  font-size:26px;
-  border:0;
-  background:none;
-  cursor:pointer
-}
-}
+.bar-top{display:flex;justify-content:space-between;align-items:center}
+#bar h1{font-size:17px;margin:0}
+
+#passportBtn{background:#fff;color:#E47303;border:0;border-radius:20px;padding:5px 12px;font-weight:bold;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+#passportBtn:hover{background:#fff8f0}
+
+#q{width:100%;box-sizing:border-box;padding:8px;font-size:16px;border:0;border-radius:4px}
+
+#res{list-style:none;margin:2px 0 0;padding:0;background:#fff;color:#000;border-radius:4px;max-height:40vh;overflow:auto}
+#res button{width:100%;text-align:left;padding:10px;border:0;background:none;font-size:15px;border-bottom:1px solid #eee}
+
+#map{position:absolute;inset:0}
+
+#leaders{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#leaders path{fill:#E47303;stroke:#fff;stroke-width:1.5}
+
+.pin{width:44px;height:44px;border-radius:50%;border:3px solid var(--c,#E47303);background:#E47303;box-shadow:0 0 0 2px #fff,0 1px 4px #0007;padding:0;overflow:hidden;cursor:pointer}
+.pin img{width:100%;height:100%;object-fit:cover;display:block}
+.pin.parent{width:58px;height:58px;border:4px solid var(--c,#E47303);box-shadow:0 0 0 2px #fff,0 1px 5px #0008}
+.pin:focus-visible{outline:3px solid #ff9800}
+.pin.sel{border-color:#ff9800}
+.pin.gone{border-style:dashed}
+.pin.gone img{filter:grayscale(1)}
+
+#tools{display:flex;gap:6px;flex-wrap:wrap;font-size:13px;align-items:center}
+#tools button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000;cursor:pointer}
+#tools label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
+#tools input[type=range]{flex:1}
+
+#panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
+#panel img{width:100%;max-height:240px;object-fit:cover;border-radius:6px;cursor:zoom-in}
+#panel h2{margin:8px 0 4px;font-size:19px}
+#panel h3{margin:12px 0 4px;font-size:15px}
+#x{position:absolute;right:8px;top:6px;font-size:26px;border:0;background:none;cursor:pointer}
 
 .kid{display:block;width:100%;text-align:left;padding:10px;margin:3px 0;border:1px solid #E47303;border-radius:6px;background:#fff;font-size:15px;cursor:pointer}
 .kid:hover{background:#fff8f0}
@@ -481,44 +193,8 @@ html,body{
 </div>
 
 <div id="bar">
-<div id="bar">
-
-  <svg class="bar-landscape"
-       viewBox="0 0 1000 120"
-       preserveAspectRatio="none"
-       aria-hidden="true">
-
-    <path class="hill-back"
-          d="M0 55
-             C120 48 160 20 260 35
-             C350 50 390 25 470 30
-             C580 38 610 8 720 25
-             C820 42 870 18 1000 20
-             L1000 120
-             L0 120
-             Z"/>
-
-    <path class="hill-front"
-          d="M0 72
-             C130 62 190 42 300 55
-             C410 68 475 38 570 50
-             C680 64 750 35 840 48
-             C910 58 950 42 1000 45
-             L1000 120
-             L0 120
-             Z"/>
-
-    <path class="bar-water"
-          d="M0 91
-             C100 83 150 101 250 91
-             C350 81 420 101 520 91
-             C620 81 700 100 800 90
-             C890 81 940 98 1000 88
-             L1000 120
-             L0 120
-             Z"/>
-  </svg>
-    <h1>Discover Brookville's Past</h1>
+  <div class="bar-top">
+    <h1>Discover Connersville's Past</h1>
     <button id="passportBtn" type="button">🏆 <span id="passportCount">0/0</span> Found</button>
   </div>
   <input id="q" type="search" placeholder="Search places..." aria-label="Search places">
@@ -2134,7 +1810,7 @@ document.addEventListener("keydown", e => {
   const count = p => PASSPORT.tasks.filter(t => p[t.id]).length;
 
   /* ---------- CSS ---------- */
-<`style>
+
   document.head.insertAdjacentHTML("beforeend", `<style>
 #passportBtn{position:relative}
 @keyframes pNudge{
@@ -2209,23 +1885,19 @@ document.addEventListener("keydown", e => {
   const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
   const starRow = (n, newest) =>
     [1, 2, 3].map(i => `<span class="${i <= n ? "on" : "off"}${i === newest ? " new" : ""}">${STAR}</span>`).join("");
-`<style>
-document.body.insertAdjacentHTML("beforeend", `
-  <div id="pSlam" role="dialog" aria-modal="true" aria-labelledby="pRank" tabindex="-1">
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-      <filter id="pInk">
-        <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="n"/>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/>
-      </filter>
-    </svg>
-    <div class="rays"></div>
-    <canvas></canvas>
-    <div class="box"></div>
-  </div>
-`);
+
+  document.body.insertAdjacentHTML("beforeend", `
+<div id="pSlam" role="dialog" aria-modal="true" aria-labelledby="pRank" tabindex="-1">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="pInk"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/></filter>
+  </svg>
+  <div class="rays"></div>
+  <canvas></canvas>
+  <div class="box"></div>
+</div>`);
 
   document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pTasks"></div>`);
-  </style>
+
   const slam = document.getElementById("pSlam");
   const btn = $("passportBtn");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
