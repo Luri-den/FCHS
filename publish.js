@@ -146,12 +146,11 @@
   const prefixPath = pth => { const w = WS(); if (!w) return pth; pth = String(pth || "").replace(/^\/+/, ""); return pth.startsWith(w.dir) ? pth : w.dir + pth; };
   const DATA_FILES = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
   // keep the event's event.json in step: which data files and photo folders it really holds (the map reads only what is listed)
-  async function eventInfoUpdate(baseTree, chosen, removed) {
+  async function eventInfoUpdate(baseTree, chosen) {
     const w = WS(), path = w.dir + "event.json";
     const entries = (await api("/git/trees/" + baseTree + "?recursive=1")).tree.filter(x => x.type === "blob");
     const have = new Set(entries.map(x => x.path));
     chosen.forEach(f => have.add(f.path));
-    (removed || []).forEach(q => have.delete(q));
     let info = {};
     const old = entries.find(x => x.path === path);
     if (old) { try { const b = await api("/git/blobs/" + old.sha); info = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b.content.replace(/\s/g, "")), c => c.charCodeAt(0)))); } catch (e) { info = {}; } }
@@ -314,91 +313,6 @@
     draw();
   }
 
-  /* ---------- Reset: wipe a map's photos/thumbs/anims and empty its data tables, in ONE commit ---------- */
-  // Only these folders can ever be deleted (thumbnails live inside them, e.g. photos/thumbs/). No free-typed paths.
-  const RESET_FOLDERS = ["photos", "spots", "stories", "anims"];
-  const RESET_DATA = ["photos.csv", "spots.csv"];          // emptied to just their header row
-
-  async function planReset(folders, dataFiles) {
-    const head = (await api("/git/ref/heads/" + await branchName())).object.sha;
-    const base = (await api("/git/commits/" + head)).tree.sha;
-    const t = await api("/git/trees/" + base + "?recursive=1");
-    if (t.truncated) throw new Error("The repository is too large to list safely. Nothing was changed.");
-    const blobs = t.tree.filter(x => x.type === "blob");
-    const dirs = folders.map(f => prefixPath(f + "/"));
-    const del = blobs.filter(x => dirs.some(d => x.path.startsWith(d))).map(x => x.path);
-    const csvs = dataFiles.map(f => prefixPath(f)).map(p => blobs.find(x => x.path === p)).filter(Boolean);
-    const counts = folders.map(f => ({ folder: prefixPath(f + "/"), n: del.filter(p => p.startsWith(prefixPath(f + "/"))).length }));
-    return { head, base, del, csvs, counts };
-  }
-
-  async function doReset(plan, message, say) {
-    say = say || function () {};
-    const branch = await branchName();
-    const tree = plan.del.map(path => ({ path, mode: "100644", type: "blob", sha: null }));   // sha:null = delete
-    for (const c of plan.csvs) {
-      say("Emptying " + c.path + "\u2026");
-      const b = await api("/git/blobs/" + c.sha);
-      const text = new TextDecoder().decode(Uint8Array.from(atob(b.content.replace(/\s/g, "")), ch => ch.charCodeAt(0)));
-      const header = text.split(/\r?\n/)[0].replace(/^\uFEFF/, "");
-      const nb = await api("/git/blobs", "POST", { content: header + "\r\n", encoding: "utf-8" });
-      tree.push({ path: c.path, mode: "100644", type: "blob", sha: nb.sha });
-    }
-    if (WS()) { say("Updating the event\u2019s file list\u2026"); tree.push(await eventInfoUpdate(plan.base, [], plan.del)); }
-    if (!tree.length) throw new Error("Nothing to reset: those folders are already empty.");
-    say("Saving\u2026");
-    const newTree = await api("/git/trees", "POST", { base_tree: plan.base, tree });
-    const commit = await api("/git/commits", "POST", { message, tree: newTree.sha, parents: [plan.head] });
-    await api("/git/refs/heads/" + branch, "PATCH", { sha: commit.sha });   // refused if someone committed meanwhile
-    baseSha = commit.sha;
-    return commit;
-  }
-
-  async function resetDialog(opts) {
-    opts = opts || {};
-    const folders = (opts.folders || RESET_FOLDERS).filter(f => RESET_FOLDERS.includes(f));
-    const dataFiles = opts.data || RESET_DATA;
-    if (!getToken()) { settingsDialog(() => resetDialog(opts)); return; }
-    const s = settings();
-    const ov = overlay(`
-      <h3 style="color:#b42318">Reset this map</h3>
-      <div class="sub">${esc(s.owner)}/${esc(s.repo)} \u00b7 ${esc(s.branch || "default branch")} \u00b7 one commit</div>
-      ${WS() ? '<div class="ghp-msg" style="color:#d4351c;font-weight:600;margin:0 0 8px">Event: ' + esc(WS().slug) + '. Only ' + esc(WS().dir) + ' is affected. The live map is not changed.</div>'
-             : '<div class="ghp-msg err" style="font-weight:600;margin:0 0 8px">This changes the LIVE map.</div>'}
-      <div id="ghp-plan" class="ghp-msg">Checking the repository\u2026</div>
-      <label>Type RESET to confirm</label><input type="text" id="ghp-conf" autocomplete="off">
-      <div class="ghp-msg" id="ghp-m"></div>
-      <div class="ghp-btns"><button id="ghp-cancel">Cancel</button><button class="go" id="ghp-go" style="background:#b42318;border-color:#b42318" disabled>Delete everything listed</button></div>`);
-    const $ = id => ov.querySelector("#" + id), msg = (t, c) => { $("ghp-m").className = "ghp-msg " + (c || ""); $("ghp-m").textContent = t; };
-    $("ghp-cancel").onclick = () => ov.remove();
-    let plan = null;
-    const ready = () => { $("ghp-go").disabled = !plan || $("ghp-conf").value.trim() !== "RESET"; };
-    $("ghp-conf").oninput = ready;
-    try {
-      plan = await planReset(folders, dataFiles);
-      $("ghp-plan").innerHTML = "<b>" + plan.del.length + " files will be deleted:</b><br>" +
-        plan.counts.map(c => esc(c.folder) + " \u2014 " + c.n + " files").join("<br>") +
-        "<br><br><b>Emptied (header row kept):</b><br>" + (plan.csvs.length ? plan.csvs.map(c => esc(c.path)).join("<br>") : "none found") +
-        '<br><br>Settings files (site.csv etc.) are not touched. Old versions stay in GitHub\u2019s history.';
-    } catch (e) { $("ghp-plan").className = "ghp-msg err"; $("ghp-plan").textContent = "Failed: " + e.message; }
-    ready();
-    $("ghp-go").onclick = async () => {
-      $("ghp-go").disabled = true; $("ghp-cancel").disabled = true; $("ghp-conf").disabled = true;
-      try {
-        const c = await doReset(plan, (WS() ? "[" + WS().slug + "] " : "") + "Reset map: remove photos, thumbnails and animations", t => msg(t));
-        $("ghp-m").className = "ghp-msg ok";
-        $("ghp-m").innerHTML = "\u2714 Reset done. " + plan.del.length + " files deleted. " +
-          '<a href="https://github.com/' + esc(s.owner) + "/" + esc(s.repo) + "/commit/" + c.sha + '" target="_blank" rel="noopener">View commit</a>' +
-          "<br>Reload this editor now. If you publish from the old page it will put the old data back.";
-        $("ghp-cancel").textContent = "Reload editor"; $("ghp-cancel").disabled = false;
-        $("ghp-cancel").onclick = () => location.reload();
-      } catch (e) {
-        msg(/401|403/.test(e.message) ? "GitHub refused the token (" + e.message + "). Check the \u2699 settings." : "Failed: " + e.message, "err");
-        $("ghp-cancel").disabled = false;
-      }
-    };
-  }
-
   /* ---------- public: add the buttons to an editor ---------- */
   function attach(opts) {
     opts = opts || {};
@@ -412,17 +326,8 @@
     const gear = document.createElement("button");
     gear.type = "button"; gear.textContent = "\u2699"; gear.title = "GitHub publish settings";
     gear.className = btn.className; gear.style.cssText = "margin-left:4px;cursor:pointer";
-    let resetBtn = null;
-    if (opts.reset) {
-      const rb = document.createElement("button");
-      rb.type = "button"; rb.textContent = "Reset map\u2026"; rb.title = "Delete all photos, thumbnails and animations and empty the data tables";
-      rb.className = btn.className; rb.style.cssText = "background:#fff;border-color:#b42318;color:#b42318;margin-left:4px;cursor:pointer";
-      rb.onclick = () => resetDialog(typeof opts.reset === "object" ? opts.reset : {});
-      resetBtn = rb;
-    }
     if (anchor) { anchor.after(btn); btn.after(gear); }
     else (document.getElementById(opts.into) || document.body).append(btn, gear);
-    if (resetBtn) gear.after(resetBtn);
 
     gear.onclick = () => settingsDialog();
     btn.onclick = async () => {
@@ -439,5 +344,5 @@
     return (await api("/git/trees/" + base + "?recursive=1")).tree.filter(x => x.type === "blob").map(x => x.path);
   }
 
-  window.GHPublish = { attach, publish, settingsDialog, listFiles, resetDialog };
+  window.GHPublish = { attach, publish, settingsDialog, listFiles };
 })();
