@@ -976,9 +976,12 @@ function startWelcome(featuredId){
       [it.parent ? "In " + it.parent.name : "", e ? "Established " + e : ""].filter(Boolean).join(" \u00b7 ");
 
     tgt.el.classList.add("spot");
+    if (introMotion) it.el.classList.add("spot");
 
     const aim = () => {
-    const p = map.project(tgt.ll);
+    const t = it.el.style.display !== "none" ? it : (it.parent || it);          // the marker that is really on screen right now
+    const mr = map.getContainer().getBoundingClientRect(), sr = document.getElementById("wsLine").getBoundingClientRect();
+    const q = map.project(t.ll), p = { x: q.x + mr.left - sr.left, y: q.y + mr.top - sr.top };   // map -> overlay coordinates
     const box = document.getElementById("wsBox");
     const bl = box.offsetLeft, bt = box.offsetTop, br = bl + box.offsetWidth, bb = bt + box.offsetHeight;
     const sx = Math.max(bl, Math.min(p.x, br)), sy = Math.max(bt, Math.min(p.y, bb));
@@ -994,10 +997,10 @@ function startWelcome(featuredId){
       const gen = ++introGen, W = window.innerWidth;
       const off = [(p.x < W * 0.5 ? 0.3 : 0.7) * W - W / 2, 0];   // keep the pin on the side away from the card
       introAim = aim; map.on("move", aim);
-      map.flyTo({ center: tgt.ll, zoom: Math.max(map.getZoom(), 16.3), offset: off, duration: 1800, essential: true });
+      map.flyTo({ center: it.ll, zoom: Math.max(map.getZoom(), 16.3), pitch: 50, offset: off, duration: 2200, essential: true });
       if (introMotion === "spin") map.once("moveend", () => {
         if (stopped || gen !== introGen) return;
-        map.easeTo({ center: tgt.ll, offset: off, bearing: map.getBearing() + 50, duration: Math.max(1500, siteTime - 2600), easing: t => t, essential: true });
+        map.easeTo({ center: it.ll, offset: off, bearing: map.getBearing() + 50, duration: Math.max(1500, siteTime - 2600), easing: t => t, essential: true });
       });
     }
 
@@ -1023,7 +1026,7 @@ function startWelcome(featuredId){
     clearTimeout(timer);
     clearTimeout(siteTimer);
     clearIntroMotion();
-    if (introMotion) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, duration: 900 });
+    if (introMotion) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, pitch: 0, duration: 900 });
     document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
     overlay.classList.remove("show");
     overlay.classList.add("exit");
